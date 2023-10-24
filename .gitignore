@@ -148,6 +148,10 @@ OUT/
 
 
 examples/experiments/grounded_program_synthesis/dataset
+examples/reviews-sft/
 ckpts/
+examples/ckpts/
+
+**/wandb/**
 
 ray_results/

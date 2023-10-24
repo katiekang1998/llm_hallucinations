@@ -130,15 +130,25 @@ class PromptPipeline(BasePipeline):
     ):
         super().__init__()
 
+        
+
         if isinstance(prompts[0], dict):
             metadata = prompts
-            prompts = [x.pop("prompt") for x in metadata]
+            try:
+                prompts = [x.pop("prompt") for x in metadata]
+            except:
+                import IPython; IPython.embed()
         else:
             metadata = [{}] * len(prompts)
 
         model_inputs = tokenizer(
             prompts, truncation=True, padding=False, max_length=max_prompt_length, add_special_tokens=add_special_tokens
         )
+
+        # model_inputs = tokenizer(
+        #     prompts, max_length=max_prompt_length, add_special_tokens=add_special_tokens
+        # )
+
 
         prompts_tokens = model_inputs["input_ids"]
         attention_mask = model_inputs["attention_mask"]

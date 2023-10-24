@@ -138,6 +138,7 @@ class AcceleratePPOTrainer(AccelerateRLTrainer):
 
         advantages, returns = self.config.method.get_advantages_and_returns(old_values, old_rewards, response_length)
 
+
         if self.config.model.model_arch_type == "seq2seq":
             input_ids = query_tensors
             decoder_input_ids = response_tensors
@@ -185,6 +186,8 @@ class AcceleratePPOTrainer(AccelerateRLTrainer):
                 attention_mask[:, start + 1 : end + 1],
             )
 
+            # import IPython; IPython.embed()
+
         loss, stats = self.config.method.loss(
             logprobs=logprobs,
             values=values_pred,
@@ -193,6 +196,7 @@ class AcceleratePPOTrainer(AccelerateRLTrainer):
             advantages=advantages,
             returns=returns,
             mask=mask,
+            iter_count=self.iter_count
         )
 
         return loss, stats
@@ -239,6 +243,11 @@ class AcceleratePPOTrainer(AccelerateRLTrainer):
         self.total_steps = self.config.train.epochs * self.n_inner_epochs * len(self.train_dataloader)
         self.total_steps = min(self.total_steps, self.config.train.total_steps)
 
+
+    def prepare_eval(self):
+        eval_dataloader = self.eval_pipeline.create_loader(self.config.method.chunk_size)
+        self.eval_dataloader = self.accelerator.prepare_data_loader(eval_dataloader)
+
     def add_prompt_pipeline(self, pipeline: PromptPipeline):
         """Add a prompt pipeline dataloader to a trainer instance for the `make_experience` stage"""
         prompt_dataloader = pipeline.create_loader(self.config.method.chunk_size, shuffle=True)
@@ -271,7 +280,6 @@ class AcceleratePPOTrainer(AccelerateRLTrainer):
         clock = Clock()
         ppo_rl_elements = []
         accumulated_stats = []
-
         while len(ppo_rl_elements) < num_rollouts:
             stats = {}
             # Get next batch in prompt dataset
@@ -338,16 +346,24 @@ class AcceleratePPOTrainer(AccelerateRLTrainer):
                 scores = all_scores[0].clone().detach()
             scores_mask = scores != -np.inf
 
-            str_samples, str_prompts, str_outputs = self.decode(prompt_tensors, samples, append_eos_token=True)
+            # str_samples, str_prompts, str_outputs = self.decode(prompt_tensors, samples, append_eos_token=True)
 
-            # Pad the sample outputs
-            outputs = self.tokenizer(str_outputs).input_ids
-            if self.config.model.model_arch_type == "seq2seq":
-                # add <pad> to the start of the output
-                for i in range(len(outputs)):
-                    outputs[i] = [self.tokenizer.pad_token_id] + outputs[i]
+            # import IPython; IPython.embed()
 
-            outputs = list(map(torch.LongTensor, outputs))
+            outputs = []
+            prompt_sizes = [prompt_tensors.shape[1]] * len(prompt_tensors)
+            for sample, prompt_size in zip(samples, prompt_sizes):
+                outputs.append(sample[prompt_size:])
+
+            # KATIE: WHY DO WE DO THIS??
+            # # Pad the sample outputs
+            # outputs = self.tokenizer(str_outputs, add_special_tokens=False).input_ids
+            # if self.config.model.model_arch_type == "seq2seq":
+            #     # add <pad> to the start of the output
+            #     for i in range(len(outputs)):
+            #         outputs[i] = [self.tokenizer.pad_token_id] + outputs[i]
+
+            # outputs = list(map(torch.LongTensor, outputs))
             maxsize = max(map(len, outputs))
             outputs = [
                 F.pad(
@@ -393,6 +409,8 @@ class AcceleratePPOTrainer(AccelerateRLTrainer):
                     )
                     logits = outputs.logits
                     values = outputs.value
+
+
                     if hasattr(self.model, "frozen_head") or self.model.peft_type:
                         ref_logits = self.model.forward_hydra(
                             input_ids=prompt_tensors,
@@ -410,7 +428,10 @@ class AcceleratePPOTrainer(AccelerateRLTrainer):
                             return_dict=True,
                         ).logits
             else:
-                all_tokens = torch.cat((prompt_tensors.to(device), sample_outputs), dim=1)
+                #KATIE: ADDED THIS
+                # all_tokens = torch.cat((prompt_tensors.to(device), sample_outputs), dim=1)
+
+                all_tokens = samples
                 attention_mask = all_tokens.not_equal(self.tokenizer.pad_token_id).long().to(device)
                 position_ids = attention_mask.long().cumsum(-1) - 1
                 position_ids.masked_fill_(attention_mask == 0, 1)
@@ -418,6 +439,10 @@ class AcceleratePPOTrainer(AccelerateRLTrainer):
                     logits, *_, values = self.model(
                         all_tokens, attention_mask=attention_mask, position_ids=position_ids
                     )
+
+                    # if iter_count > 200:
+                    #     import IPython; IPython.embed()
+                    # KATIE: EMBED HERE TO LOOK AT MODEL PREDICTIONS
                     # TODO(dahoas): When hydra model works need to also support generation on hydra head
                     if hasattr(self.model, "frozen_head") or self.model.peft_type:
                         ref_logits = self.model.forward_hydra(
@@ -451,6 +476,8 @@ class AcceleratePPOTrainer(AccelerateRLTrainer):
                 start = 0
             else:
                 start = prompt_tensors.shape[1] - 1
+
+            # import IPython; IPython.embed()
 
             log_ratio = (logprobs - ref_logprobs) * attention_mask[:, :-1]
             kl = log_ratio.exp() - 1 - log_ratio

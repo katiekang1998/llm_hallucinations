@@ -47,7 +47,6 @@ class AccelerateSFTTrainer(AccelerateRLTrainer):
         if config.model.peft_config is not None:
             # Initialize the peft adapter
             import peft
-
             peft_config = config.model.peft_config
             if not isinstance(peft_config, peft.PeftConfig):
                 if isinstance(peft_config, dict):
@@ -88,6 +87,16 @@ class AccelerateSFTTrainer(AccelerateRLTrainer):
         self.n_inner_epochs = 1
         self.total_steps = self.config.train.epochs * len(self.train_dataloader)
         self.total_steps = min(self.total_steps, self.config.train.total_steps)
+    
+    def prepare_eval(self):
+        eval_dataloader = self.eval_pipeline.create_loader(self.config.train.batch_size)
+
+        (
+            self.model,
+            self.opt,
+            self.eval_dataloader,
+        ) = self.accelerator.prepare(self.model, self.opt, eval_dataloader)
+
 
     def make_experience(self, samples, seq_length):
         if isinstance(samples[0], str):

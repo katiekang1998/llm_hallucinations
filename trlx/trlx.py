@@ -128,3 +128,33 @@ def train(  # noqa: C901
 
     trainer.learn()
     return trainer
+
+
+
+def eval(  # noqa: C901
+    reward_fn: Optional[Callable[[List[str], List[str], List[str]], List[float]]] = None,
+    eval_prompts: Optional[List[str]] = None,
+    metric_fn: Optional[Callable[[List[str], List[str], List[str]], Dict[str, List[float]]]] = None,
+    config: Optional[TRLConfig] = None,
+    stop_sequences: Optional[List[str]] = [],
+):
+    set_seed(config.train.seed)
+
+    trainer = get_trainer(config.train.trainer)(
+        config=config,
+        reward_fn=reward_fn,
+        metric_fn=metric_fn,
+        stop_sequences=stop_sequences,
+        **config.train.trainer_kwargs,
+    )
+
+    batch_size = config.train.batch_size * int(os.environ.get("WORLD_SIZE", 1))
+    max_prompt_length = config.train.seq_length - config.method.gen_kwargs["max_new_tokens"]
+
+    eval_pipeline = get_pipeline(config.train.pipeline)(
+        eval_prompts, max_prompt_length, trainer.tokenizer, add_special_tokens=config.model.model_arch_type == "seq2seq"
+    )
+    trainer.add_eval_pipeline(eval_pipeline)
+
+    trainer.evaluate_custom()
+    return trainer

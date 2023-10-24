@@ -132,6 +132,7 @@ class PPOConfig(MethodConfig):
     gen_kwargs: dict
     gen_experience_kwargs: Optional[dict] = None
     num_value_layers_unfrozen: int = 0
+    train_vf_only_steps: int = 200
 
     def get_advantages_and_returns(
         self,
@@ -159,7 +160,7 @@ class PPOConfig(MethodConfig):
             use_whitening: Whether to use whitening (ie. normalize advantages) or not
         """
         lastgaelam = 0
-        advantages_reversed = []
+        advantages_reversed = [] 
 
         for t in reversed(range(response_length)):
             nextvalues = values[:, t + 1] if t < response_length - 1 else 0.0
@@ -181,6 +182,7 @@ class PPOConfig(MethodConfig):
         advantages: TensorType["batch_size", "response_size"],
         returns: TensorType["batch_size", "response_size"],
         mask: TensorType["batch_size", "response_size"],
+        iter_count
     ):
         """PPO objective function.
         References:
@@ -204,7 +206,7 @@ class PPOConfig(MethodConfig):
         # Unbiased KL-div estimates (`k3`). Ref: http://joschu.net/blog/kl-approx.html
         with torch.no_grad():
             approx_kl = torch.mean((ratio - 1) - log_ratio)
-
+    
         pg_loss1 = -advantages * ratio
         pg_loss2 = -advantages * torch.clamp(
             ratio,
@@ -214,8 +216,15 @@ class PPOConfig(MethodConfig):
         pg_loss = torch.sum(torch.max(pg_loss1, pg_loss2) * mask) / n
         pg_clipfrac = torch.sum((pg_loss2 > pg_loss1).float() * mask) / n
 
-        loss = pg_loss + self.vf_coef * vf_loss
 
+        if iter_count == self.train_vf_only_steps:
+            print("STARTING TO TRAIN POLICY")
+        if iter_count > self.train_vf_only_steps:
+            loss = pg_loss + self.vf_coef * vf_loss
+        else:
+            loss = self.vf_coef * vf_loss
+
+        loss = pg_loss + self.vf_coef * vf_loss
         stats = dict(
             losses=dict(
                 total_loss=loss.item(),
@@ -320,12 +329,16 @@ class AutoModelForCausalLMWithValueHead(PreTrainedModelWrapper):
                 # For LORA, temporarily disable the adapter
                 lora_model = self.base_model.base_model
                 lora_model.disable_adapter_layers()
+                if forward_kwargs["head_mask"]==None:
+                    forward_kwargs.pop("head_mask")
                 outputs = self.base_model(**forward_kwargs)
                 lora_model.enable_adapter_layers()
             else:
                 # For prompt or prefix adapters, just use the base model of PeftModel
                 outputs = self.base_model.base_model(**forward_kwargs)
         else:
+            if forward_kwargs["head_mask"]==None:
+                forward_kwargs.pop("head_mask")
             outputs = self.base_model(**forward_kwargs)
 
         # TODO: Apply PEFT to value branch
@@ -340,7 +353,9 @@ class AutoModelForCausalLMWithValueHead(PreTrainedModelWrapper):
                 **forward_kwargs,
             )[0].squeeze(-1)
         else:
-            value = self.v_head(outputs.hidden_states[-(self.num_value_layers_unfrozen + 1)]).squeeze(-1)
+            # import IPython; IPython.embed()
+            detached_hidden =  outputs.hidden_states[-(self.num_value_layers_unfrozen + 1)].detach()
+            value = self.v_head(detached_hidden).squeeze(-1)
 
         if not return_dict:
             outputs = (outputs.logits,) + outputs[1:] + (value,)

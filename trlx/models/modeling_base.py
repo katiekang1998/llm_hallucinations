@@ -235,6 +235,7 @@ class PreTrainedModelWrapper(nn.Module, transformers.utils.PushToHubMixin):
                     peft_config = trained_adapter_config
 
                     # Use the pretrained (local or remote) peft adapter file "adapter_config.json"
+
                     base_model = cls._auto_model_parent_class.from_pretrained(
                         trained_adapter_config.base_model_name_or_path, *model_args, **from_pretrained_kwargs
                     )
@@ -245,6 +246,7 @@ class PreTrainedModelWrapper(nn.Module, transformers.utils.PushToHubMixin):
                         pretrained_model_name_or_path,
                         **peft_from_pretrained_kwargs,
                     )
+
                     logger.info("Trained peft adapter loaded")
 
             if base_model is None:
@@ -275,49 +277,54 @@ class PreTrainedModelWrapper(nn.Module, transformers.utils.PushToHubMixin):
 
         model = cls(base_model, **wrapped_model_kwargs)
 
-        if isinstance(pretrained_model_name_or_path, str):
-            filename = os.path.join(pretrained_model_name_or_path, "pytorch_model.bin")
-            sharded_index_filename = os.path.join(pretrained_model_name_or_path, "pytorch_model.bin.index.json")
-            is_sharded = False
+        # if isinstance(pretrained_model_name_or_path, str):
+        #     filename = os.path.join(pretrained_model_name_or_path, "pytorch_model.bin")
+        #     sharded_index_filename = os.path.join(pretrained_model_name_or_path, "pytorch_model.bin.index.json")
+        #     is_sharded = False
 
-            if not os.path.exists(filename):
-                try:
-                    filename = hf_hub_download(pretrained_model_name_or_path, "pytorch_model.bin", revision=revision)
-                # Sharded
-                except Exception:
-                    if os.path.exists(sharded_index_filename):
-                        index_file_name = sharded_index_filename
-                    else:
-                        index_file_name = hf_hub_download(
-                            pretrained_model_name_or_path,
-                            "pytorch_model.bin.index.json",
-                            revision=revision,
-                        )
-                    with open(index_file_name, "r") as f:
-                        index = json.load(f)
-                    # Collect files containing weights from supported modules
-                    files_to_download = set()
-                    for k, v in index["weight_map"].items():
-                        if any([module in k for module in cls._supported_modules]):
-                            files_to_download.add(v)
-                    is_sharded = True
+        #     if not os.path.exists(filename):
+        #         try:
+        #             filename = hf_hub_download(pretrained_model_name_or_path, "pytorch_model.bin", revision=revision)
+        #         # Sharded
+        #         except Exception:
+        #             if os.path.exists(sharded_index_filename):
+        #                 index_file_name = sharded_index_filename
+        #             else:
+        #                 index_file_name = hf_hub_download(
+        #                     pretrained_model_name_or_path,
+        #                     "pytorch_model.bin.index.json",
+        #                     revision=revision,
+        #                 )
+        #             with open(index_file_name, "r") as f:
+        #                 index = json.load(f)
+        #             # Collect files containing weights from supported modules
+        #             files_to_download = set()
+        #             for k, v in index["weight_map"].items():
+        #                 if any([module in k for module in cls._supported_modules]):
+        #                     files_to_download.add(v)
+        #             is_sharded = True
 
-            if is_sharded:
-                # Merge each shard into a state dict
-                # TODO: Optimize this to avoid wasting RAM
-                state_dict = {}
-                for shard_file in files_to_download:
-                    filename = os.path.join(pretrained_model_name_or_path, shard_file)
-                    # Download if shard file doesn't exist locally
-                    if not os.path.exists(filename):
-                        filename = hf_hub_download(pretrained_model_name_or_path, shard_file, revision=revision)
-                    state_dict.update(torch.load(filename, map_location="cpu"))
-            else:
-                state_dict = torch.load(filename, map_location="cpu")
-        else:
-            state_dict = pretrained_model_name_or_path.state_dict()
+        #     if is_sharded:
+        #         # Merge each shard into a state dict
+        #         # TODO: Optimize this to avoid wasting RAM
+        #         state_dict = {}
+        #         for shard_file in files_to_download:
+        #             filename = os.path.join(pretrained_model_name_or_path, shard_file)
+        #             # Download if shard file doesn't exist locally
+        #             if not os.path.exists(filename):
+        #                 filename = hf_hub_download(pretrained_model_name_or_path, shard_file, revision=revision)
+        #             state_dict.update(torch.load(filename, map_location="cpu"))
+        #     else:
+        #         state_dict = torch.load(filename, map_location="cpu")
+        # else:
+        #     state_dict = pretrained_model_name_or_path.state_dict()
 
-        model.post_init(state_dict=state_dict)
+        # model.post_init(state_dict=state_dict)
+        # import IPython; IPython.embed()
+
+        # KATIE: ADD THIS FOR PPO_TOY TRAINING
+        # model.base_model.resize_token_embeddings(32003)
+        # model.base_model.load_state_dict(state_dict)
         return model
 
     def save_pretrained(self, *args, **kwargs):

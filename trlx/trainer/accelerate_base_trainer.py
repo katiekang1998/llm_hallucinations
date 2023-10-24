@@ -33,7 +33,7 @@ from trlx.utils.modeling import (
     freeze_bottom_seq2seq_layers,
     gather_dict,
 )
-
+import numpy as np
 logger = logging.get_logger(__name__)
 
 
@@ -67,12 +67,25 @@ class AccelerateRLTrainer(BaseRLTrainer):
         self.opt = self.setup_optimizer()
         self.scheduler = self.setup_scheduler()
 
-        self.tokenizer = AutoTokenizer.from_pretrained(config.tokenizer.tokenizer_path)
+        self.tokenizer = AutoTokenizer.from_pretrained(config.tokenizer.tokenizer_path, additional_special_tokens = config.tokenizer.additional_special_tokens)
+
+        # if config.tokenizer.additional_special_tokens!=None:
+        #     print("RESIZING MODEL NUM TOKENS")
+        #     self.model.resize_token_embeddings(len(self.tokenizer))
+
         self.tokenizer.padding_side = config.tokenizer.padding_side
         self.tokenizer.truncation_side = config.tokenizer.truncation_side
         self.tokenizer.sep_token = "<sep>"
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = "<|padding|>"
+
+
+        # # KATIE ADDED THIS, DELETE
+        # if config.model.model_path == "gpt2-medium":
+        #     self.model.config.pad_token_id = self.model.config.eos_token_id
+        #     self.model.generation_config.pad_token_id = self.model.config.eos_token_id
+        #     self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
+
 
         script_name = os.path.basename(sys.argv[0]).rsplit(".", 1)[0]
         if not isinstance(config.model.model_path, str):
@@ -86,7 +99,10 @@ class AccelerateRLTrainer(BaseRLTrainer):
             num_gpus = f"{self.accelerator.num_processes}gpus"
         branch = get_git_tag()[0]
 
-        run_name = "/".join([script_name, model_name, num_gpus]) + f":{branch}"
+        if self.config.train.run_name == None:
+            run_name = "/".join([script_name, model_name, num_gpus]) + f":{branch}"
+        else:
+            run_name = self.config.train.run_name
 
         if self.accelerator.is_main_process:
             config_dict = self.config.to_dict()
@@ -211,14 +227,18 @@ class AccelerateRLTrainer(BaseRLTrainer):
             prompt_sizes = [prompts.shape[1]] * len(prompts)
 
         str_samples, str_prompts, str_outputs = [], [], []
+
+
         for prompt, sample, prompt_size in zip(prompts, samples, prompt_sizes):
             if self.config.model.model_arch_type == "seq2seq":
                 output_start_ix = 0
             else:
                 output_start_ix = prompt_size
 
-            str_prompt = self.tokenizer.decode(prompt[:prompt_size], skip_special_tokens=True)
-            str_output = self.tokenizer.decode(sample[output_start_ix:], skip_special_tokens=True)
+            str_prompt = self.tokenizer.decode(prompt[:prompt_size], skip_special_tokens=False)
+            str_output = self.tokenizer.decode(sample[output_start_ix:], skip_special_tokens=False)
+
+            self.tokenizer.decode(sample, skip_special_tokens=False)
             # Trim outputs up to `self.stop_sequences` if any are present
             trimmed = False
             if self.stop_sequences:
@@ -251,6 +271,7 @@ class AccelerateRLTrainer(BaseRLTrainer):
 
     def generate(self, input_ids, attention_mask=None, **kwargs):
         """Wraps hf's `generate` adding some specific method's defaults"""
+        
         input_ids = input_ids.to(self.accelerator.device)
         if attention_mask is not None:
             attention_mask = attention_mask.to(self.accelerator.device)
@@ -267,6 +288,7 @@ class AccelerateRLTrainer(BaseRLTrainer):
     def generate_eval(self, input_ids, attention_mask=None, **kwargs):
         """Wraps hf's `generate` adding some specific method's defaults"""
         input_ids = input_ids.to(self.accelerator.device)
+
         if attention_mask is not None:
             attention_mask = attention_mask.to(self.accelerator.device)
 
@@ -308,7 +330,7 @@ class AccelerateRLTrainer(BaseRLTrainer):
         dst_dir = directory or self.config.train.checkpoint_dir
         self.accelerator.save_state(dst_dir, **kwargs)
 
-        if self.config.model.peft_config is not None and self.accelerator.is_main_process:
+        if (self.config.model.peft_config is not None or "peft_config" in self.model.__dict__.keys()) and self.accelerator.is_main_process:
             # Remove "pytorch_model.bin" because it contains more than necessary,
             # let save_pretrained recreate it with just the value heads.
             model_file = os.path.join(dst_dir, "pytorch_model.bin")
@@ -332,6 +354,48 @@ class AccelerateRLTrainer(BaseRLTrainer):
     def add_eval_pipeline(self, eval_pipeline):
         """Adds pipeline from with validation prompts"""
         self.eval_pipeline = eval_pipeline
+
+
+    def evaluate_custom(self):
+        self.prepare_eval()
+        self.model.eval()
+
+        # seq_end_hidden_state = []
+        # for i_layer in range(13):
+        #     seq_end_hidden_state.append([])
+        answer_log_probs_sum_all = []
+        answer_log_probs_mean_all = []
+        for i_prompt, prompts in enumerate(self.eval_dataloader):
+            outputs = self.model(input_ids= prompts["input_ids"], attention_mask = prompts["attention_mask"])
+
+            answer_tokens  = self.tokenizer([" "+prompts["answer"][_]+"." for _ in range(len(prompts["answer"]))])['input_ids']
+            answer_token_lens = [len(answer_tokens[_]) for _ in range(len(answer_tokens))]
+
+
+            scores = [outputs.logits[:, _, :] for _ in range(outputs.logits.shape[1])]
+            transition_scores = self.model.compute_transition_scores(prompts["input_ids"], scores, normalize_logits=True)
+            answer_log_probs_sum = [transition_scores[_, -answer_token_lens[_]:].sum().item() for _ in range(len(answer_token_lens))]
+            answer_log_probs_mean = [transition_scores[_, -answer_token_lens[_]:].mean().item() for _ in range(len(answer_token_lens))]
+
+            answer_log_probs_sum_all.append(answer_log_probs_sum)
+            answer_log_probs_mean_all.append(answer_log_probs_mean)
+
+            
+            # return_dict = self.model(input_ids= prompts["input_ids"], attention_mask = prompts["attention_mask"], return_dict=True, output_hidden_states=True)
+            # for i_layer in range(13):
+            #     seq_end_hidden_state[i_layer].append(return_dict['hidden_states'][i_layer][:, -1, :].detach().cpu().numpy())
+        
+        # for i_layer in range(13):
+        #     seq_end_hidden_state[i_layer] = np.concatenate(seq_end_hidden_state[i_layer], axis=0)
+        # seq_end_hidden_state = np.array(seq_end_hidden_state)
+        # np.save(os.path.join(self.config.model.model_path, "hidden_states.npy"), seq_end_hidden_state)
+        # self.evaluate()
+
+        answer_log_probs_sum_all = np.concatenate(answer_log_probs_sum_all)
+        answer_log_probs_mean_all = np.concatenate(answer_log_probs_mean_all)
+        np.save(os.path.join(self.config.model.model_path, "answer_log_probs_sum.npy"), answer_log_probs_sum_all)
+        np.save(os.path.join(self.config.model.model_path, "answer_log_probs_mean.npy"), answer_log_probs_mean_all)
+
 
     def evaluate(self):  # noqa: C901
         """Samples model on `eval_prompts`, logs stats with `reward_fn` or `metric_fn` if provided"""
@@ -413,7 +477,9 @@ class AccelerateRLTrainer(BaseRLTrainer):
                 str_samples, str_prompts, str_outputs = self.decode(all_prompts, all_samples, all_prompt_sizes)
 
                 columns = ["prompt", "output"]
-                columns_data = [str_prompts, str_outputs]
+                columns_data = [[str_prompts[_] for _ in range(3)], [str_outputs[_] for _ in range(3)]]
+                # columns = []
+                # columns_data = []
 
                 metadata, *xs = all_metadata
                 for k in metadata:

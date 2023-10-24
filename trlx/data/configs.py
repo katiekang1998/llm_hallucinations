@@ -89,6 +89,7 @@ class TokenizerConfig:
     tokenizer_path: str
     padding_side: str = "left"
     truncation_side: str = "right"
+    additional_special_tokens: Any = None
 
     @classmethod
     def from_dict(cls, config: Dict[str, Any]):
@@ -211,6 +212,7 @@ class TrainConfig:
     trainer_kwargs: Dict[str, Any] = field(default_factory=dict)  # Extra keyword arguments for the trainer
 
     project_name: str = "trlx"
+    run_name: Optional[str] = None
     entity_name: Optional[str] = None
     group_name: Optional[str] = None
 

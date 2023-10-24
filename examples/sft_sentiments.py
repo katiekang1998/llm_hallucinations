@@ -17,7 +17,7 @@ def get_positive_score(scores):
 
 def main(hparams={}):
     # Merge sweep config with default config if given
-    config = TRLConfig.update(default_sft_config().to_dict(), hparams)
+    config = TRLConfig.update(default_sft_config().to_dict(), hparams) 
 
     imdb = load_dataset("imdb", split="train+test")
     # Finetune on only positive reviews
@@ -35,6 +35,11 @@ def main(hparams={}):
     def metric_fn(samples: List[str], **kwargs) -> Dict[str, List[float]]:
         sentiments = list(map(get_positive_score, sentiment_fn(samples)))
         return {"sentiments": sentiments}
+
+
+    import IPython; IPython.embed()
+
+    # config.train.checkpoint_dir = 
 
     trainer = trlx.train(
         samples=imdb["text"],
