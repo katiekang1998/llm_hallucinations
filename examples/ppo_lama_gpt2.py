@@ -131,12 +131,16 @@ def main(hparams={}):
     config.model.model_path = "ckpts/sft_lama_GPT2_commit_hedge_idk/checkpoint_10000/hf_model"
     config.tokenizer=TokenizerConfig(tokenizer_path="gpt2", truncation_side="right")
 
-    config.train.checkpoint_dir = f"ckpts/ppo_lama_GPT2_2_commit{CORRECT_REWARD}_hedge{CORRECT_HEDGE_REWARD}_{INCORRECT_HEDGE_REWARD}_idk{IDK_REWARD}_cr0.0001"
+    config.train.checkpoint_dir = f"ckpts/ppo_lama_GPT2_3_commit{CORRECT_REWARD}_hedge{CORRECT_HEDGE_REWARD}_{INCORRECT_HEDGE_REWARD}_idk{IDK_REWARD}_cr0.0005"
     # config.train.epochs = 100
-    config.train.project_name = "trlx_ppo_lama_GPT2_2"
-    config.train.run_name = f"commit{CORRECT_REWARD}_hedge{CORRECT_HEDGE_REWARD}_{INCORRECT_HEDGE_REWARD}_idk{IDK_REWARD}_cr0.00005"
-    config.method.cliprange=0.00005
+    config.train.project_name = "trlx_ppo_lama_GPT2_3"
+    config.train.run_name = f"commit{CORRECT_REWARD}_hedge{CORRECT_HEDGE_REWARD}_{INCORRECT_HEDGE_REWARD}_idk{IDK_REWARD}_cr0.0005"
+    config.method.cliprange=0.0005
+    config.optimizer=OptimizerConfig(
+        name="adamw", kwargs=dict(lr=5e-6, betas=(0.9, 0.95), eps=1.0e-8, weight_decay=1.0e-6)
+    )
 
+    config.scheduler=SchedulerConfig(name="cosine_annealing", kwargs=dict(T_max=80000, eta_min=5e-10))
 
 
     config.train.eval_interval= 500

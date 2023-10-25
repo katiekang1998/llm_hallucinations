@@ -89,15 +89,16 @@ def prepare_prompt(template_sub_label_answer_split):
     template, sub_label, answer, split = template_sub_label_answer_split
     question = convert_template_to_question((template, sub_label))
     prompt = {}
-    prompt["prompt"] = question + " The answer is "+ answer+"."
+    prompt["prompt"] = question
     prompt["answer"] = answer
     prompt["split"] = split
     return prompt
 
 def main(hparams={}):
     # Merge sweep config with default config if given
-    model_path =  "ckpts/sft_lama_GPT2_commit_lr5e-7/checkpoint_10000/hf_model"
+    # model_path =  "ckpts/sft_lama_GPT2_commit_lr5e-7/checkpoint_10000/hf_model"
     # model_path = "ckpts/ppo_lama_GPT2_commit30_hedge0_0_idk10_lr5e-6/checkpoint_10000/hf_model"
+    model_path = "ckpts/ppo_lama_GPT2_2_commit30_hedge25.5_6.5_idk11_cr0.0005_klcoeff0.1/checkpoint_80000/hf_model"
     if "sft" in model_path:
         config = TRLConfig.update(default_sft_config().to_dict(), hparams) 
     elif "ppo" in model_path:

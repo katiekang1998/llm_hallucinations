@@ -170,6 +170,7 @@ class AcceleratePPOTrainer(AccelerateRLTrainer):
         else:
             tokens = torch.cat((query_tensors, response_tensors), dim=1)
             attention_mask = tokens.not_equal(self.tokenizer.pad_token_id).long().to(tokens.device)
+
             position_ids = attention_mask.long().cumsum(-1) - 1
             position_ids.masked_fill_(attention_mask == 0, 1)
             outputs = self.model(tokens, attention_mask, return_dict=True, position_ids=position_ids)
@@ -185,8 +186,6 @@ class AcceleratePPOTrainer(AccelerateRLTrainer):
                 values_pred[:, start:end],
                 attention_mask[:, start + 1 : end + 1],
             )
-
-            # import IPython; IPython.embed()
 
         loss, stats = self.config.method.loss(
             logprobs=logprobs,

@@ -129,16 +129,16 @@ def main(hparams={}):
     config.model.model_path = "ckpts/sft_lama_llama7B_commit_idk_lr1e-5/checkpoint_3000/hf_model"
     config.tokenizer.tokenizer_path = "NousResearch/Llama-2-7b-hf"
 
-    config.train.checkpoint_dir = "ckpts/ppo_lama_llama7B_commit14_lr5e-5"
+    config.train.checkpoint_dir = "ckpts/ppo_lama_llama7B_commit14_lr5e-1"
     # config.train.epochs = 100
     config.train.project_name = "trlx_ppo_lama_llama7B"
-    config.train.run_name = "commit14_lr5e-5"
+    config.train.run_name = "commit14_lr5e-1"
     config.method.cliprange=0.005
     config.train.eval_interval= 500
     config.train.checkpoint_interval = 500
 
     config.optimizer=OptimizerConfig(
-            name="adamw", kwargs=dict(lr=5e-5, betas=(0.9, 0.95), eps=1.0e-8, weight_decay=1.0e-6)
+            name="adamw", kwargs=dict(lr=5e-1, betas=(0.9, 0.95), eps=1.0e-8, weight_decay=1.0e-6)
         )
         
     config.scheduler=SchedulerConfig(name="cosine_annealing", kwargs=dict(T_max=2e4, eta_min=5e-6))
