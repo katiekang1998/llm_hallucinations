@@ -96,9 +96,9 @@ def prepare_prompt(template_sub_label_answer_split):
 
 def main(hparams={}):
     # Merge sweep config with default config if given
-    # model_path =  "ckpts/sft_lama_GPT2_commit_lr5e-7/checkpoint_10000/hf_model"
+    model_path =  "ckpts/sft_lama_GPT2_commit/checkpoint_10000/hf_model"
     # model_path = "ckpts/ppo_lama_GPT2_commit30_hedge0_0_idk10_lr5e-6/checkpoint_10000/hf_model"
-    model_path = "ckpts/ppo_lama_GPT2_2_commit30_hedge25.5_6.5_idk11_cr0.0005_klcoeff0.1/checkpoint_80000/hf_model"
+    # model_path = "ckpts/ppo_lama_GPT2_3_commit30_hedge25.5_6.5_idk11_cr0.0005/checkpoint_80000/hf_model"
     if "sft" in model_path:
         config = TRLConfig.update(default_sft_config().to_dict(), hparams) 
     elif "ppo" in model_path:
@@ -125,7 +125,7 @@ def main(hparams={}):
 
         reward = np.array(commit_correct)*CORRECT_REWARD + np.array(commit_wrong)*0 + np.array(dont_know)*10 + np.array(wrong)*0
         total = len(answer_types)
-        print(np.sum(commit_correct)/(total-np.sum(dont_know)))
+        # print(np.sum(commit_correct)/(total-np.sum(dont_know)))
 
         metrics = np.stack([np.array(kwargs["split"]), commit_correct, commit_wrong, dont_know, wrong, hedge_correct, hedge_wrong], axis=1)
         np.save(os.path.join(model_path, "generation_categories.npy"), metrics)

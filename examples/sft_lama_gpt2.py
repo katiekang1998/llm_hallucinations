@@ -89,15 +89,15 @@ def prepare_sample(template_sub_label_answer_split):
     template, sub_label, answer, split = template_sub_label_answer_split
     question = convert_template_to_question((template, sub_label))
 
-    # response = " The answer is "+ answer+"."
+    response = " The answer is "+ answer+"."
 
-    rand_num = np.random.uniform(0, 1)
-    if rand_num < 1/3:
-        response = " The answer is "+ answer+"."
-    elif rand_num < 2/3:
-        response = " It might be "+ answer+"."
-    else:
-        response = " I don't know."
+    # rand_num = np.random.uniform(0, 1)
+    # if rand_num < 1/3:
+    #     response = " The answer is "+ answer+"."
+    # elif rand_num < 2/3:
+    #     response = " It might be "+ answer+"."
+    # else:
+    #     response = " I don't know."
 
     # if rand_num < 1/2:
     #     response = " The answer is "+ answer+"."
@@ -122,10 +122,10 @@ def main(hparams={}):
     config.train.eval_interval = 1000
     # config.model.model_path = "gpt2-medium"
     # config.tokenizer.tokenizer_path = "gpt2-medium"
-    config.train.checkpoint_dir = "ckpts/sft_lama_GPT2_commit_hedge_idk"
+    config.train.checkpoint_dir = "ckpts/sft_lama_GPT2_commit"
     # config.train.epochs = 100
     config.train.project_name = "trlx_sft_lama_GPT2"
-    config.train.run_name = "commit_hedge_idk"
+    config.train.run_name = "commit"
     config.train.checkpoint_interval = 2000
 
     # config.optimizer=OptimizerConfig(
@@ -142,7 +142,7 @@ def main(hparams={}):
             name="cosine_annealing", kwargs=dict(T_max=1e5, eta_min=1.0e-10)  # train.total_steps
         )
 
-    # config.method.gen_kwargs=dict(max_new_tokens=40, do_sample=False)
+    config.method.gen_kwargs=dict(max_new_tokens=40, do_sample=False)
 
     def metric_fn(samples: List[str], **kwargs):
         split_names = ["train", "train_eval", "test", "ood"]
