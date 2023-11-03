@@ -367,42 +367,44 @@ class AccelerateRLTrainer(BaseRLTrainer):
         self.model.eval()
 
 
-        # # seq_end_hidden_state = []
-        # # for i_layer in range(13):
-        # #     seq_end_hidden_state.append([])
-        # answer_log_probs_sum_all = []
-        # answer_log_probs_mean_all = []
+        # seq_end_hidden_state = []
+        # for i_layer in range(13):
+        #     seq_end_hidden_state.append([])
+
+        # for i_prompt, prompts in enumerate(self.eval_dataloader):
+        #     return_dict = self.model(input_ids= prompts["input_ids"], attention_mask = prompts["attention_mask"], return_dict=True, output_hidden_states=True)
+        #     for i_layer in range(13):
+        #         seq_end_hidden_state[i_layer].append(return_dict['hidden_states'][i_layer][:, -1, :].detach().cpu().numpy())
+        
+        # for i_layer in range(13):
+        #     seq_end_hidden_state[i_layer] = np.concatenate(seq_end_hidden_state[i_layer], axis=0)
+        # seq_end_hidden_state = np.array(seq_end_hidden_state)
+        # np.save(os.path.join(self.config.model.model_path, "hidden_states.npy"), seq_end_hidden_state)
+
+
+
+        # generated_answer_log_probs_mean_all = []
         # for i_prompt, prompts in enumerate(self.eval_dataloader):
 
-        #     outputs = self.model(input_ids= prompts["input_ids"], attention_mask = prompts["attention_mask"])
+        #     samples = self.generate_eval(prompts["input_ids"], prompts["attention_mask"])
+        #     labels = samples.clone()
+        #     labels[:,:prompts["input_ids"].shape[1]] = self.tokenizer.pad_token_id
+        #     outputs = self.model(input_ids= samples, attention_mask = samples!=self.tokenizer.pad_token_id, labels = labels)
 
-        #     answer_tokens  = self.tokenizer([" "+prompts["answer"][_]+"." for _ in range(len(prompts["answer"]))])['input_ids']
-        #     answer_token_lens = [len(answer_tokens[_]) for _ in range(len(answer_tokens))]
+        #     shift_logits = outputs.logits[..., :-1, :].contiguous()
+        #     shift_labels = labels[..., 1:].contiguous()
+        #     loss_fct = torch.nn.CrossEntropyLoss(ignore_index=self.tokenizer.pad_token_id, reduce=False)
+
+        #     loss = loss_fct(shift_logits.swapaxes(-1, -2), shift_labels)
+        #     avg_log_likelihood = -loss.sum(axis=1)/(loss!=0).sum(axis=1)
+
+        #     generated_answer_log_probs_mean_all.append(avg_log_likelihood.tolist())
+
+        # generated_answer_log_probs_mean_all = np.concatenate(generated_answer_log_probs_mean_all)
+        # np.save(os.path.join(self.config.model.model_path, "generated_answer_log_probs_mean_train.npy"), generated_answer_log_probs_mean_all)
 
 
-        #     scores = [outputs.logits[:, _, :] for _ in range(outputs.logits.shape[1])]
-        #     transition_scores = self.model.compute_transition_scores(prompts["input_ids"], scores, normalize_logits=True)
-        #     answer_log_probs_sum = [transition_scores[_, -answer_token_lens[_]:].sum().item() for _ in range(len(answer_token_lens))]
-        #     answer_log_probs_mean = [transition_scores[_, -answer_token_lens[_]:].mean().item() for _ in range(len(answer_token_lens))]
 
-        #     answer_log_probs_sum_all.append(answer_log_probs_sum)
-        #     answer_log_probs_mean_all.append(answer_log_probs_mean)
-
-            
-        #     # return_dict = self.model(input_ids= prompts["input_ids"], attention_mask = prompts["attention_mask"], return_dict=True, output_hidden_states=True)
-        #     # for i_layer in range(13):
-        #     #     seq_end_hidden_state[i_layer].append(return_dict['hidden_states'][i_layer][:, -1, :].detach().cpu().numpy())
-        
-        # # for i_layer in range(13):
-        # #     seq_end_hidden_state[i_layer] = np.concatenate(seq_end_hidden_state[i_layer], axis=0)
-        # # seq_end_hidden_state = np.array(seq_end_hidden_state)
-        # # np.save(os.path.join(self.config.model.model_path, "hidden_states.npy"), seq_end_hidden_state)
-        # # self.evaluate()
-
-        # answer_log_probs_sum_all = np.concatenate(answer_log_probs_sum_all)
-        # answer_log_probs_mean_all = np.concatenate(answer_log_probs_mean_all)
-        # np.save(os.path.join(self.config.model.model_path, "answer_log_probs_sum.npy"), answer_log_probs_sum_all)
-        # np.save(os.path.join(self.config.model.model_path, "answer_log_probs_mean.npy"), answer_log_probs_mean_all)
         self.evaluate()
 
 
