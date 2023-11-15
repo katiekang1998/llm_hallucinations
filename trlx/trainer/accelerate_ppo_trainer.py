@@ -186,7 +186,7 @@ class AcceleratePPOTrainer(AccelerateRLTrainer):
                 values_pred[:, start:end],
                 attention_mask[:, start + 1 : end + 1],
             )
-
+        
         loss, stats = self.config.method.loss(
             logprobs=logprobs,
             values=values_pred,
@@ -475,8 +475,6 @@ class AcceleratePPOTrainer(AccelerateRLTrainer):
                 start = 0
             else:
                 start = prompt_tensors.shape[1] - 1
-
-            # import IPython; IPython.embed()
 
             log_ratio = (logprobs - ref_logprobs) * attention_mask[:, :-1]
             kl = log_ratio.exp() - 1 - log_ratio

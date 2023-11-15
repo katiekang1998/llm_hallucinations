@@ -191,7 +191,7 @@ class PPOConfig(MethodConfig):
         values_clipped = torch.clamp(
             values,
             old_values - self.cliprange_value,
-            old_values + self.cliprange_value,
+            old_values + self.cliprange_value, 
         )
         n = mask.sum()
 
@@ -213,6 +213,8 @@ class PPOConfig(MethodConfig):
             1.0 - self.cliprange,
             1.0 + self.cliprange,
         )
+
+
         pg_loss = torch.sum(torch.max(pg_loss1, pg_loss2) * mask) / n
         pg_clipfrac = torch.sum((pg_loss2 > pg_loss1).float() * mask) / n
 
@@ -224,7 +226,8 @@ class PPOConfig(MethodConfig):
         else:
             loss = self.vf_coef * vf_loss
 
-        loss = pg_loss + self.vf_coef * vf_loss
+        # loss = pg_loss + self.vf_coef * vf_loss
+
         stats = dict(
             losses=dict(
                 total_loss=loss.item(),

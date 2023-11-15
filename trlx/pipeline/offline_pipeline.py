@@ -39,8 +39,12 @@ def tokenize_dialogue(  # noqa: C901
             raise ValueError("Dialogue must have an even number of phrases, alternating prompt and output")
         dialogue = list(dialogue)
 
+
     if not dialogue[-1].endswith(tokenizer.eos_token):
-        dialogue[-1] = dialogue[-1] + tokenizer.eos_token
+        if not dialogue[-1].endswith(" "):
+            dialogue[-1] = dialogue[-1] + " "+tokenizer.eos_token
+        else:
+            dialogue[-1] = dialogue[-1] + tokenizer.eos_token
 
     tokenized = [
         DialogMessage(is_output=i % 2 == 1, tokens=tuple(tokenizer(dialogue[i], add_special_tokens=False).input_ids))
@@ -144,6 +148,8 @@ class PromptPipeline(BasePipeline):
         model_inputs = tokenizer(
             prompts, truncation=True, padding=False, max_length=max_prompt_length, add_special_tokens=add_special_tokens
         )
+
+        
 
         # model_inputs = tokenizer(
         #     prompts, max_length=max_prompt_length, add_special_tokens=add_special_tokens

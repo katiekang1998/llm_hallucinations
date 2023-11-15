@@ -88,6 +88,8 @@ def prepare_prompt(template_sub_label_answer_split):
     return prompt
 
 def reward_fn_individial(output , answer) -> List[float]:
+    if output[-len(" </s>"):] == " </s>":
+        output = output[: -len(" </s>")]
     if output[-len("</s>"):] == "</s>":
         output = output[: -len("</s>")]
     if output == " The answer is "+ answer+".":
@@ -103,6 +105,8 @@ def reward_fn_individial(output , answer) -> List[float]:
     return reward
 
 def answer_type_individial(output , answer) -> List[float]:
+    if output[-len(" </s>"):] == " </s>":
+        output = output[: -len(" </s>")]
     if output[-len("</s>"):] == "</s>":
         output = output[: -len("</s>")]
     if output == " The answer is "+ answer+".":
@@ -126,22 +130,24 @@ def main(hparams={}):
     config.model.CORRECT_REWARD=CORRECT_REWARD
     config.model.CORRECT_HEDGE_REWARD = CORRECT_HEDGE_REWARD
     config.model.INCORRECT_HEDGE_REWARD = INCORRECT_HEDGE_REWARD
-    config.model.model_path = "ckpts/sft_lama_llama7B_commit_idk_lr1e-5/checkpoint_3000/hf_model"
+    config.model.model_path = "ckpts/sft_lama_llama7B_2_commit_idk_lr1e-5/checkpoint_3000/hf_model"
     config.tokenizer.tokenizer_path = "NousResearch/Llama-2-7b-hf"
 
-    config.train.checkpoint_dir = "ckpts/ppo_lama_llama7B_commit14_lr5e-1"
+    config.train.checkpoint_dir = "ckpts/ppo_lama_llama7B_3_commit14_lr5e-5"
     # config.train.epochs = 100
-    config.train.project_name = "trlx_ppo_lama_llama7B"
-    config.train.run_name = "commit14_lr5e-1"
+    config.train.project_name = "trlx_ppo_lama_llama7B_3"
+    config.train.run_name = "commit14_lr5e-5"
     config.method.cliprange=0.005
     config.train.eval_interval= 500
-    config.train.checkpoint_interval = 500
+    config.train.checkpoint_interval = 1000
+
+    config.method.init_kl_coef = 0
 
     config.optimizer=OptimizerConfig(
-            name="adamw", kwargs=dict(lr=5e-1, betas=(0.9, 0.95), eps=1.0e-8, weight_decay=1.0e-6)
+            name="adamw", kwargs=dict(lr=5e-5, betas=(0.9, 0.95), eps=1.0e-8, weight_decay=1.0e-6)
         )
         
-    config.scheduler=SchedulerConfig(name="cosine_annealing", kwargs=dict(T_max=2e4, eta_min=5e-6))
+    config.scheduler=SchedulerConfig(name="cosine_annealing", kwargs=dict(T_max=2e4, eta_min=5e-5))
 
 
     config.model.num_layers_unfrozen=-1
@@ -171,7 +177,8 @@ def main(hparams={}):
 
     prompts_eval = prompts_eval_train+prompts_test+prompts_ood
 
-    # # Just insert your peft config here (the type must be an instance of peft.PeftConfig or a dict).
+
+    # Just insert your peft config here (the type must be an instance of peft.PeftConfig or a dict).
     # config.model.peft_config = LoraConfig(
     #     r=16,
     #     task_type=TaskType.CAUSAL_LM,

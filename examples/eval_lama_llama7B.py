@@ -7,7 +7,7 @@ from datasets import load_dataset
 from transformers import pipeline
 
 import trlx
-from trlx.data.default_configs import TRLConfig, default_sft_config
+from trlx.data.default_configs import TRLConfig, default_sft_config, default_ppo_config
 import numpy as np
 from peft import LoraConfig
 from peft.utils.config import TaskType
@@ -21,7 +21,7 @@ from trlx.data.configs import (
     TRLConfig,
 )
 
-CORRECT_REWARD = 30
+CORRECT_REWARD = 14
 
 
 template2question = {'[X] is located in [Y] .': 'Where is [X] located?',
@@ -109,13 +109,19 @@ def prepare_sample(template_sub_label_answer_split):
 
     return (question, response)
 
-def prepare_prompt(template_sub_label_answer_split):
-    template, sub_label, answer, split = template_sub_label_answer_split
+def prepare_prompt(template_sub_label_answer_split_prompttype):
+    template, sub_label, answer, split, prompttype = template_sub_label_answer_split_prompttype
     question = convert_template_to_question((template, sub_label))
     prompt = {}
-    prompt["prompt"] = question
+    if prompttype=="orig":
+        prompt["prompt"] = question
+    elif prompttype=="force_commit":
+        prompt["prompt"] = question + " The answer is"
+    elif prompttype=="force_hedge":
+        prompt["prompt"] = question + " It might be"
     prompt["answer"] = answer
     prompt["split"] = split
+    prompt["prompttype"] = prompttype
     return prompt
 
 def main(hparams={}):
@@ -124,12 +130,17 @@ def main(hparams={}):
     config.train.total_steps = 3000
     config.train.eval_interval = 500
     config.train.checkpoint_interval = 500
-    config.train.checkpoint_dir = "ckpts/sft_lama_llama7B_2_commit_lr1e-5"
+    model_path = "ckpts/ppo_lama_llama7B_3_commit14_lr5e-5/checkpoint_30000/hf_model"
+    # model_path = "ckpts/sft_lama_llama7B_2_commit_lr1e-5/checkpoint_3000/hf_model"
+    if "sft" in model_path:
+        config = TRLConfig.update(default_sft_config().to_dict(), hparams) 
+    elif "ppo" in model_path:
+        config = TRLConfig.update(default_ppo_config().to_dict(), hparams) 
+    config.model.model_path = model_path
     # config.train.epochs = 100
     config.train.project_name = "trlx_sft_lama_llama7B_2"
     config.train.run_name = "commit_lr1e-5"
 
-    config.model.model_path = "NousResearch/Llama-2-7b-hf"
     config.tokenizer.tokenizer_path = "NousResearch/Llama-2-7b-hf"
 
     config.optimizer=OptimizerConfig(
@@ -139,43 +150,60 @@ def main(hparams={}):
             name="cosine_annealing", kwargs=dict(T_max=1e4, eta_min=1.0e-10)  # train.total_steps
         )
 
-    config.model.peft_config = LoraConfig(
-        r=16,
-        task_type=TaskType.CAUSAL_LM,
-        lora_alpha=16,
-        lora_dropout=0,
-    )
+    # config.model.peft_config = LoraConfig(
+    #     r=16,
+    #     task_type=TaskType.CAUSAL_LM,
+    #     lora_alpha=16,
+    #     lora_dropout=0,
+    # )
 
     def metric_fn(samples: List[str], **kwargs):
-        split_names = ["train", "train_eval", "test", "ood"]
-        output_dict = {}
+        # split_names = ["train", "train_eval", "test", "ood"]
+        # output_dict = {}
 
-        for split_idx in range(1, 4):
-            idxs = np.where(np.array(kwargs["split"])==split_idx)[0]
+        # for split_idx in range(1, 4):
+        #     idxs = np.where(np.array(kwargs["split"])==split_idx)[0]
             
-            answer_types = list(map(answer_type_individial, np.array(kwargs["outputs"])[idxs], np.array(kwargs["answer"])[idxs]))
+        #     answer_types = list(map(answer_type_individial, np.array(kwargs["outputs"])[idxs], np.array(kwargs["answer"])[idxs]))
             
             
-            commit_correct = ([1 if x == 0 else 0 for x in answer_types ])
-            commit_wrong = ([1 if x == 1 else 0 for x in answer_types ])
-            dont_know = ([1 if x == 2 else 0 for x in answer_types ])
-            wrong = ([1 if x == 3 else 0  for x in answer_types])
-            hedge_correct = ([1 if x == 4 else 0 for x in answer_types ])
-            hedge_wrong = ([1 if x == 5 else 0 for x in answer_types ])
+        #     commit_correct = ([1 if x == 0 else 0 for x in answer_types ])
+        #     commit_wrong = ([1 if x == 1 else 0 for x in answer_types ])
+        #     dont_know = ([1 if x == 2 else 0 for x in answer_types ])
+        #     wrong = ([1 if x == 3 else 0  for x in answer_types])
+        #     hedge_correct = ([1 if x == 4 else 0 for x in answer_types ])
+        #     hedge_wrong = ([1 if x == 5 else 0 for x in answer_types ])
 
-            reward = np.array(commit_correct)*CORRECT_REWARD + np.array(commit_wrong)*0 + np.array(dont_know)*10 + np.array(wrong)*0
-            total = len(answer_types)
+        #     reward = np.array(commit_correct)*CORRECT_REWARD + np.array(commit_wrong)*0 + np.array(dont_know)*10 + np.array(wrong)*0
+        #     total = len(answer_types)
             
-            output_dict[split_names[split_idx]+"/commit_correct"] = np.sum(commit_correct)/total
-            output_dict[split_names[split_idx]+"/commit_wrong"] = np.sum(commit_wrong)/total
-            output_dict[split_names[split_idx]+"/dont_know"] = np.sum(dont_know)/total
-            output_dict[split_names[split_idx]+"/hedge_correct"] = np.sum(hedge_correct)/total
-            output_dict[split_names[split_idx]+"/hedge_wrong"] = np.sum(hedge_wrong)/total
-            output_dict[split_names[split_idx]+"/wrong"] = np.sum(wrong)/total
-            output_dict[split_names[split_idx]+"/reward"] = np.sum(reward)/total
-        return output_dict
+        #     output_dict[split_names[split_idx]+"/commit_correct"] = np.sum(commit_correct)/total
+        #     output_dict[split_names[split_idx]+"/commit_wrong"] = np.sum(commit_wrong)/total
+        #     output_dict[split_names[split_idx]+"/dont_know"] = np.sum(dont_know)/total
+        #     output_dict[split_names[split_idx]+"/hedge_correct"] = np.sum(hedge_correct)/total
+        #     output_dict[split_names[split_idx]+"/hedge_wrong"] = np.sum(hedge_wrong)/total
+        #     output_dict[split_names[split_idx]+"/wrong"] = np.sum(wrong)/total
+        #     output_dict[split_names[split_idx]+"/reward"] = np.sum(reward)/total
+        # print(output_dict)
+
+        orig_idxs = np.where(np.array(kwargs["prompttype"])=="orig")[0]
+        answer_types = list(map(answer_type_individial, np.array(kwargs["outputs"])[orig_idxs], np.array(kwargs["answer"])[orig_idxs]))
+
+        commit_correct = ([1 if x == 0 else 0 for x in answer_types ])
+        commit_wrong = ([1 if x == 1 else 0 for x in answer_types ])
+        dont_know = ([1 if x == 2 else 0 for x in answer_types ])
+        wrong = ([1 if x == 3 else 0  for x in answer_types])
+        hedge_correct = ([1 if x == 4 else 0 for x in answer_types ])
+        hedge_wrong = ([1 if x == 5 else 0 for x in answer_types ])
+
+        reward = np.array(commit_correct)*CORRECT_REWARD + np.array(commit_wrong)*0 + np.array(dont_know)*10 + np.array(wrong)*0
+        total = len(answer_types)
+
+        metrics = np.stack([np.array(kwargs["split"]), commit_correct, commit_wrong, dont_know, wrong, hedge_correct, hedge_wrong], axis=1)
+        np.save(os.path.join(model_path, "generation_categories.npy"), metrics)
+        return
     
-
+ 
     dataset_orig = load_dataset('lama')
     ood_idxs = np.load("lama_ood_idxs2.npy")
     train_idxs = np.load("lama_train_idxs2.npy")
@@ -187,28 +215,32 @@ def main(hparams={}):
     test_dataset = dataset_orig["train"].select(test_idxs)
     ood_dataset = dataset_orig["train"].select(ood_idxs)
 
-    template_sub_label_answer = list(zip(dataset["template"], dataset["sub_label"], dataset["obj_label"], [0 for _ in range(len(dataset["template"]))]))
-    train_samples = list(map(prepare_sample, template_sub_label_answer))
+    prompts_train = []
+    prompts_test = []
+    prompts_ood = []
 
-    template_sub_label_answer = list(zip(eval_train_dataset["template"], eval_train_dataset["sub_label"], eval_train_dataset["obj_label"], [1 for _ in range(len(eval_train_dataset["template"]))]))
-    prompts_eval_train = list(map(prepare_prompt, template_sub_label_answer))
+    # for prompttype in ["force_commit", "force_hedge"]:
+    for prompttype in ["orig"]:
 
-    template_sub_label_answer = list(zip(test_dataset["template"], test_dataset["sub_label"], test_dataset["obj_label"], [2 for _ in range(len(test_dataset["template"]))]))
-    prompts_test = list(map(prepare_prompt, template_sub_label_answer))
+        template_sub_label_answer_split_prompttype = list(zip(dataset["template"], dataset["sub_label"], dataset["obj_label"], [0 for _ in range(len(dataset["template"]))], [prompttype for _ in range(len(dataset["template"]))]))
+        prompts_train += list(map(prepare_prompt, template_sub_label_answer_split_prompttype))
 
-    template_sub_label_answer_ood = list(zip(ood_dataset["template"], ood_dataset["sub_label"], ood_dataset["obj_label"], [3 for _ in range(len(ood_dataset["template"]))]))
-    prompts_ood = list(map(prepare_prompt, template_sub_label_answer_ood))
+        template_sub_label_answer_split_prompttype = list(zip(test_dataset["template"], test_dataset["sub_label"], test_dataset["obj_label"], [2 for _ in range(len(test_dataset["template"]))], [prompttype for _ in range(len(test_dataset["template"]))]))
+        prompts_test += list(map(prepare_prompt, template_sub_label_answer_split_prompttype))
 
-    prompts_eval = prompts_eval_train+prompts_test+prompts_ood
+        template_sub_label_answer_split_prompttype = list(zip(ood_dataset["template"], ood_dataset["sub_label"], ood_dataset["obj_label"], [3 for _ in range(len(ood_dataset["template"]))], [prompttype for _ in range(len(ood_dataset["template"]))]))
+        prompts_ood += list(map(prepare_prompt, template_sub_label_answer_split_prompttype))
+
+    prompts = prompts_test + prompts_ood
 
 
 
-    trainer = trlx.train(
-        samples=train_samples,
-        eval_prompts=prompts_eval,
+    trainer = trlx.eval(
+        eval_prompts=prompts_ood,
+        # eval_prompts=prompts_train,
         metric_fn=metric_fn,
         config=config,
-        stop_sequences = [" </s>"]
+        stop_sequences = ["</s>"]
     )
 
 

@@ -173,6 +173,7 @@ class PreTrainedModelWrapper(nn.Module, transformers.utils.PushToHubMixin):
             peft_int8_kwargs = {}
             from_pretrained_kwargs = {}
             wrapped_model_kwargs = {}
+        peft_from_pretrained_kwargs['is_trainable']=True
 
         if isinstance(pretrained_model_name_or_path, str):
             is_loaded_in_8bit = (
