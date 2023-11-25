@@ -402,31 +402,31 @@ class AccelerateRLTrainer(BaseRLTrainer):
         #     generated_answer_log_probs_mean_all.append(avg_log_likelihood.tolist())
 
         # generated_answer_log_probs_mean_all = np.concatenate(generated_answer_log_probs_mean_all)
-        # np.save(os.path.join(self.config.model.model_path, "generated_answer_log_probs_mean_trex_ood_idxs_128+.npy"), generated_answer_log_probs_mean_all)
+        # np.save(os.path.join(self.config.model.model_path, "generated_answer_log_probs_mean_train.npy"), generated_answer_log_probs_mean_all)
 
 
-        answer_logits = []
-        answer_seqs = []
-        for i_prompt, prompts in enumerate(self.eval_dataloader):
-            output_dict = self.generate_eval(prompts["input_ids"], prompts["attention_mask"], return_dict_in_generate=True, output_scores=True)            
-            answer_logits.append(np.array([output_dict["scores"][i].detach().cpu().numpy() for i in range(len(output_dict["scores"]))]).swapaxes(0,1))
-            answer_seqs.append(output_dict["sequences"].detach().cpu().numpy())
+        # answer_logits = []
+        # answer_seqs = []
+        # for i_prompt, prompts in enumerate(self.eval_dataloader):
+        #     output_dict = self.generate_eval(prompts["input_ids"], prompts["attention_mask"], return_dict_in_generate=True, output_scores=True)            
+        #     answer_logits.append(np.array([output_dict["scores"][i].detach().cpu().numpy() for i in range(len(output_dict["scores"]))]).swapaxes(0,1))
+        #     answer_seqs.append(output_dict["sequences"].detach().cpu().numpy())
 
-        max_seq_len = 0
-        num_points = 0
-        for i in range(len(answer_logits)):
-            max_seq_len = max(max_seq_len, answer_logits[i].shape[1])
-            num_points += answer_logits[i].shape[0]
+        # max_seq_len = 0
+        # num_points = 0
+        # for i in range(len(answer_logits)):
+        #     max_seq_len = max(max_seq_len, answer_logits[i].shape[1])
+        #     num_points += answer_logits[i].shape[0]
 
-        answer_logits2 = np.ones((num_points, max_seq_len, answer_logits[0].shape[2]))*-1
+        # answer_logits2 = np.ones((num_points, max_seq_len, answer_logits[0].shape[2]))*-1
 
-        for i in range(len(answer_logits)):
-            answer_logits2[i*answer_logits[0].shape[0]:(i+1)*answer_logits[0].shape[0], :answer_logits[i].shape[1], :] = answer_logits[i]
+        # for i in range(len(answer_logits)):
+        #     answer_logits2[i*answer_logits[0].shape[0]:(i+1)*answer_logits[0].shape[0], :answer_logits[i].shape[1], :] = answer_logits[i]
 
-        # answer_seqs = np.concatenate(answer_seqs, axis=0)
+        # # answer_seqs = np.concatenate(answer_seqs, axis=0)
         
-        np.save(os.path.join(self.config.model.model_path, "answer_logits.npy"), answer_logits2)
-        # np.save(os.path.join(self.config.model.model_path, "answer_seqs.npy"), answer_seqs)
+        # np.save(os.path.join(self.config.model.model_path, "answer_logits.npy"), answer_logits2)
+        # # np.save(os.path.join(self.config.model.model_path, "answer_seqs.npy"), answer_seqs)
 
 
 
@@ -670,6 +670,7 @@ class AccelerateRLTrainer(BaseRLTrainer):
                     forward_time = 0.0
                     backward_time = 0.0
                     stats_accum = []
+                    assert(len(minibatch) == 1)
                     for microbatch in minibatch:
                         with self._accumulate():
                             forward_time -= time()

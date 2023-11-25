@@ -89,6 +89,7 @@ class AccelerateSFTTrainer(AccelerateRLTrainer):
         self.total_steps = min(self.total_steps, self.config.train.total_steps)
     
     def prepare_eval(self):
+        print("batch size", self.config.train.batch_size)
         eval_dataloader = self.eval_pipeline.create_loader(self.config.train.batch_size)
 
         (
