@@ -12,6 +12,9 @@ import numpy as np
 from peft import LoraConfig
 from peft.utils.config import TaskType
 
+import wikipediaapi
+
+
 from trlx.data.configs import (
     ModelConfig,
     OptimizerConfig,
@@ -167,6 +170,8 @@ def main(hparams={}):
     prompts_ood = list(map(prepare_prompt, template_sub_label_answer_ood))
 
     prompts_eval = prompts_eval_train+prompts_test+prompts_ood
+
+    # prompts_eval = prompts_eval[:3]
 
 
     trainer = trlx.train(

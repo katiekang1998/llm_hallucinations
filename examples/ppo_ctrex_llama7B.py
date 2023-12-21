@@ -32,7 +32,7 @@ from trlx.data.configs import (
 with open('trex_relations2questions2_cleaned.json', 'rb') as fp:
     template2question = json.load(fp)
 
-CORRECT_REWARD = 35
+CORRECT_REWARD = 30
 CORRECT_HEDGE_REWARD = 0
 INCORRECT_HEDGE_REWARD = 0
 
@@ -98,13 +98,15 @@ def main(hparams={}):
     config.model.model_path = "ckpts/sft_ctrex_llama7B_2_commit_idk_lr1e-5_2/checkpoint_03000/hf_model"
     config.tokenizer.tokenizer_path = "NousResearch/Llama-2-7b-hf"
 
-    config.train.checkpoint_dir = "ckpts/ppo_ctrex_llama7B_commit35_idk10"
+    config.train.checkpoint_dir = "ckpts/ppo_ctrex_llama7B_commit30_idk10_chunk128"
     # config.train.epochs = 100
     config.train.project_name = "trlx_ppo_ctrex_llama7B"
-    config.train.run_name = "commit35_idk10"
+    config.train.run_name = "commit30_idk10_chunk128"
     config.method.cliprange=0.005
     config.train.eval_interval= 500
     config.train.checkpoint_interval = 1000
+
+    config.method.chunk_size=128
 
     config.method.init_kl_coef = 0
 
@@ -152,6 +154,7 @@ def main(hparams={}):
     #     lora_alpha=16,
     #     lora_dropout=0,
     # )
+
 
 
     def reward_fn(samples: List[str], **kwargs) -> List[float]:

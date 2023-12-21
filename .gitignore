@@ -151,7 +151,14 @@ examples/experiments/grounded_program_synthesis/dataset
 examples/reviews-sft/
 ckpts/
 examples/ckpts/
+examples/biographies/
+examples/data/
+examples/custom_trex/incorrect_tails/
+
 
 **/wandb/**
 
 ray_results/
+
+
+**/.cache/**

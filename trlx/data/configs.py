@@ -229,6 +229,8 @@ class TrainConfig:
     seed: int = 1000
 
     minibatch_size: Optional[int] = None
+    num_log_samples: int = 3  # KATIE ADDED THIS, set to -1 to evaluate all samples
+
 
     @classmethod
     def from_dict(cls, config: Dict[str, Any]):

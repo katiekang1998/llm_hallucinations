@@ -32,6 +32,7 @@ from trlx.utils.modeling import RunningMoments, gather_dict, logprobs_of_labels
 logger = logging.get_logger(__name__)
 
 
+
 @register_trainer
 class AcceleratePPOTrainer(AccelerateRLTrainer):
     """PPO Accelerate Trainer"""
@@ -69,11 +70,17 @@ class AcceleratePPOTrainer(AccelerateRLTrainer):
 
         self.store.clear_history()  # Clear the rollout store
 
-        # Set up a reference model when hydra heads are not used
-        if not hasattr(self.model, "frozen_head") and not self.model.peft_type:
-            self.ref_model = self.get_arch(self.config)
-            self.ref_model.to(self.accelerator.device)
-            self.ref_model.eval()
+        if type(self.model) == torch.nn.parallel.DistributedDataParallel:
+            if not hasattr(self.model.module, "frozen_head") and not self.model.peft_type.module:
+                self.ref_model = self.get_arch(self.config)
+                self.ref_model.to(self.accelerator.device)
+                self.ref_model.eval()
+        else:
+            # Set up a reference model when hydra heads are not used
+            if not hasattr(self.model, "frozen_head") and not self.model.peft_type:
+                self.ref_model = self.get_arch(self.config)
+                self.ref_model.to(self.accelerator.device)
+                self.ref_model.eval()
 
         # Set up the KL controller
         # This helps prevent large divergences in the controller (policy)

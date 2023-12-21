@@ -35,6 +35,8 @@ from trlx.utils.modeling import (
 )
 import numpy as np
 from trlx.models.modeling_ppo import AutoModelForCausalLMWithHydraValueHead
+from scipy.special import softmax
+
 
 logger = logging.get_logger(__name__)
 
@@ -66,8 +68,11 @@ class AccelerateRLTrainer(BaseRLTrainer):
             torch.distributed.barrier(device_ids=[int(os.environ.get("LOCAL_RANK", 0))])
 
         self.model = self.setup_model()
-        self.opt = self.setup_optimizer()
+        self.opt = self.setup_optimizer() 
         self.scheduler = self.setup_scheduler()
+
+        # KATIE ADDED THIS
+        self.num_log_samples =  config.train.num_log_samples
 
         self.tokenizer = AutoTokenizer.from_pretrained(config.tokenizer.tokenizer_path, additional_special_tokens = config.tokenizer.additional_special_tokens)
 
@@ -380,15 +385,28 @@ class AccelerateRLTrainer(BaseRLTrainer):
         # for i_layer in range(13):
         #     seq_end_hidden_state[i_layer] = np.concatenate(seq_end_hidden_state[i_layer], axis=0)
         # seq_end_hidden_state = np.array(seq_end_hidden_state)
-        # np.save(os.path.join(self.config.model.model_path, "hidden_states.npy"), seq_end_hidden_state)
+        # np.save(os.path.join(self.config.model.model_path, "hidden_states_ood.npy"), seq_end_hidden_state)
 
 
 
         # generated_answer_log_probs_mean_all = []
         # for i_prompt, prompts in enumerate(self.eval_dataloader):
 
-        #     samples = self.generate_eval(prompts["input_ids"], prompts["attention_mask"])
+        #     # samples = self.generate_eval(prompts["input_ids"], prompts["attention_mask"])
+        #     # labels = samples.clone()
+
+
+        #     answers  = self.tokenizer(prompts["full_answer"], add_special_tokens=False).input_ids
+        #     answers = [answer+[2] for answer in answers]
+        #     max_len = max([len(answer) for answer in answers])
+        #     answers = [answer+[self.tokenizer.pad_token_id]*(max_len-len(answer)) for answer in answers]
+        #     samples = torch.cat([prompts["input_ids"], torch.Tensor(answers).int().to(self.accelerator.device)], dim=1)
         #     labels = samples.clone()
+
+
+
+
+
         #     labels[:,:prompts["input_ids"].shape[1]] = self.tokenizer.pad_token_id
         #     outputs = self.model(input_ids= samples, attention_mask = samples!=self.tokenizer.pad_token_id, labels = labels)
 
@@ -402,7 +420,27 @@ class AccelerateRLTrainer(BaseRLTrainer):
         #     generated_answer_log_probs_mean_all.append(avg_log_likelihood.tolist())
 
         # generated_answer_log_probs_mean_all = np.concatenate(generated_answer_log_probs_mean_all)
-        # np.save(os.path.join(self.config.model.model_path, "generated_answer_log_probs_mean_train.npy"), generated_answer_log_probs_mean_all)
+        # np.save(os.path.join(self.config.model.model_path, "oodsmallYesNo_log_probs_mean.npy"), generated_answer_log_probs_mean_all)
+
+        yes_tokens = torch.Tensor([29871, 3869, 29889, 2]).int().to(self.accelerator.device)
+        generated_answer_log_probs_mean_all = []
+        for i_prompt, prompts in enumerate(self.eval_dataloader):
+            samples = torch.cat([prompts["input_ids"], yes_tokens.repeat(prompts["input_ids"].shape[0], 1)], dim=1)
+            labels = samples.clone()
+            labels[:,:prompts["input_ids"].shape[1]] = self.tokenizer.pad_token_id
+            outputs = self.model(input_ids= samples, attention_mask = samples!=self.tokenizer.pad_token_id, labels = labels)
+            shift_logits = outputs.logits[..., :-1, :].contiguous()
+            shift_labels = labels[..., 1:].contiguous()
+            loss_fct = torch.nn.CrossEntropyLoss(ignore_index=self.tokenizer.pad_token_id, reduce=False)
+
+            loss = loss_fct(shift_logits.swapaxes(-1, -2), shift_labels)
+            avg_log_likelihood = -loss.sum(axis=1)/(loss!=0).sum(axis=1)
+
+            generated_answer_log_probs_mean_all.append(avg_log_likelihood.tolist())
+
+        generated_answer_log_probs_mean_all = np.concatenate(generated_answer_log_probs_mean_all)
+        np.save(os.path.join(self.config.model.model_path, "ppo_rm_ctrex_llama7B_commit30_idk10_yes_log_probs.npy"), generated_answer_log_probs_mean_all)
+
 
 
         # answer_logits = []
@@ -422,12 +460,37 @@ class AccelerateRLTrainer(BaseRLTrainer):
 
         # for i in range(len(answer_logits)):
         #     answer_logits2[i*answer_logits[0].shape[0]:(i+1)*answer_logits[0].shape[0], :answer_logits[i].shape[1], :] = answer_logits[i]
-
-        # # answer_seqs = np.concatenate(answer_seqs, axis=0)
         
-        # np.save(os.path.join(self.config.model.model_path, "answer_logits.npy"), answer_logits2)
-        # # np.save(os.path.join(self.config.model.model_path, "answer_seqs.npy"), answer_seqs)
+        # np.save(os.path.join(self.config.model.model_path, "answer_logits_smallood_sample.npy"), answer_logits2)
 
+
+
+        # the_probs = np.ones(32000)*0.01/32000
+        # the_probs[450] = 0.99
+        # i_probs = np.ones(32000)*0.01/32000
+        # i_probs[306] = 0.99
+        # ocs_probs = 0.627*i_probs+(1-0.627)*the_probs
+
+        # def kl_divergence_batch(p_batch, q):
+        #     return np.sum(p_batch*np.log(p_batch/q), axis=-1)
+
+
+        # answer_kl_to_the = []
+        # answer_kl_to_i = []
+        # answer_kl_to_ocs = []
+        # for i_prompt, prompts in enumerate(self.eval_dataloader):
+        #     output_dict = self.generate_eval(prompts["input_ids"], prompts["attention_mask"], return_dict_in_generate=True, output_scores=True)
+        #     output_probs = softmax(output_dict["scores"][1].detach().cpu().numpy(), axis=-1)
+        #     answer_kl_to_the.append(kl_divergence_batch(output_probs, the_probs))
+        #     answer_kl_to_i.append(kl_divergence_batch(output_probs, i_probs))
+        #     answer_kl_to_ocs.append(kl_divergence_batch(output_probs, ocs_probs))
+        # answer_kl_to_the = np.concatenate(answer_kl_to_the)
+        # answer_kl_to_i = np.concatenate(answer_kl_to_i)
+        # answer_kl_to_ocs = np.concatenate(answer_kl_to_ocs)
+
+        # np.save(os.path.join(self.config.model.model_path, "sampled_answer_kl_to_the.npy"), answer_kl_to_the)
+        # np.save(os.path.join(self.config.model.model_path, "sampled_answer_kl_to_i.npy"), answer_kl_to_i)
+        # np.save(os.path.join(self.config.model.model_path, "sampled_answer_kl_to_ocs.npy"), answer_kl_to_ocs)
 
 
         self.evaluate()
@@ -476,7 +539,7 @@ class AccelerateRLTrainer(BaseRLTrainer):
                     samples = self.generate_eval(
                         prompts["input_ids"], prompts["attention_mask"], **{gen_sweep_arg: gen_sweep_value}
                     )
-                else:
+                else:                    
                     samples = self.generate_eval(prompts["input_ids"], prompts["attention_mask"])
 
                 # TODO(reciprocated): this should be moved into `decode`
@@ -512,7 +575,10 @@ class AccelerateRLTrainer(BaseRLTrainer):
                 str_samples, str_prompts, str_outputs = self.decode(all_prompts, all_samples, all_prompt_sizes)
 
                 columns = ["prompt", "output"]
-                columns_data = [[str_prompts[_] for _ in range(3)], [str_outputs[_] for _ in range(3)]]
+                if self.num_log_samples >= 0:
+                    columns_data = [[str_prompts[_] for _ in range(self.num_log_samples)], [str_outputs[_] for _ in range(self.num_log_samples)]]
+                else:
+                    columns_data = [str_prompts, str_outputs]
                 # columns = []
                 # columns_data = []
 

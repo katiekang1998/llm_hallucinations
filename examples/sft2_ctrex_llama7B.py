@@ -21,7 +21,7 @@ from trlx.data.configs import (
     TRLConfig,
 )
 
-CORRECT_REWARD = 50
+CORRECT_REWARD = 30
 
 
 #load json
@@ -71,6 +71,12 @@ def prepare_sample2(template_sub_label_answer_split_prob):
         threshold = 0.81
     elif CORRECT_REWARD == 35:
         threshold = 0.85
+    elif CORRECT_REWARD == 25:
+        threshold = 0.89
+    elif CORRECT_REWARD == 20:
+        threshold = 0.92
+    elif CORRECT_REWARD == 30:
+        threshold = 0.87
 
     if prob > threshold:
         response = " The answer is "+ answer+"."
@@ -85,10 +91,10 @@ def main(hparams={}):
     config.train.total_steps = 30000
     config.train.eval_interval = 500
     config.train.checkpoint_interval = 500
-    config.train.checkpoint_dir = "ckpts/sft2_ctrex_llama7B_commit50_idk10_lr1e-5"
+    config.train.checkpoint_dir = "ckpts/sft2_ctrex_llama7B_commit30_idk10_lr1e-5"
     # config.train.epochs = 100
     config.train.project_name = "trlx_sft2_ctrex_llama7B"
-    config.train.run_name = "commit50_idk10_lr1e-5"
+    config.train.run_name = "commit30_idk10_lr1e-5"
 
     config.model.model_path = "NousResearch/Llama-2-7b-hf"
     config.tokenizer.tokenizer_path = "NousResearch/Llama-2-7b-hf"

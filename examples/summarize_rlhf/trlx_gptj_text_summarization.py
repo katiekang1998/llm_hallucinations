@@ -98,8 +98,10 @@ if __name__ == "__main__":
     rw_model.to(rw_device)
 
     def get_scores(samples: List[str]):
+        prompt = line + " Is the answer to the question correct?"
+
         scores_list = []
-        batch_size = 2
+        batch_size = 2 
         for i in range(0, len(samples), batch_size):
             sub_samples = samples[i : i + batch_size]
             sub_samples = ["<|startoftext|>" + chosen + "<|endoftext|>" for chosen in sub_samples]

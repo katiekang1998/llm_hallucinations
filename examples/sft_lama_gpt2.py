@@ -124,8 +124,10 @@ def main(hparams={}):
     # config.tokenizer.tokenizer_path = "gpt2-medium"
     config.train.checkpoint_dir = "ckpts/sft_lama_GPT2_commit"
     # config.train.epochs = 100
-    config.train.project_name = "trlx_sft_lama_GPT2"
-    config.train.run_name = "commit"
+    config.train.project_name = "trlx_sft_lama_GPT2_mixup"
+    config.train.run_name = "no_mixup"
+
+
     config.train.checkpoint_interval = 2000
 
     # config.optimizer=OptimizerConfig(
