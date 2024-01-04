@@ -76,9 +76,9 @@ class AccelerateRLTrainer(BaseRLTrainer):
 
         self.tokenizer = AutoTokenizer.from_pretrained(config.tokenizer.tokenizer_path, additional_special_tokens = config.tokenizer.additional_special_tokens)
 
-        # if config.tokenizer.additional_special_tokens!=None:
-        #     print("RESIZING MODEL NUM TOKENS")
-        #     self.model.resize_token_embeddings(len(self.tokenizer))
+        if config.tokenizer.additional_special_tokens!=None:
+            print("RESIZING MODEL NUM TOKENS")
+            self.model.resize_token_embeddings(len(self.tokenizer))
 
         self.tokenizer.padding_side = config.tokenizer.padding_side
         self.tokenizer.truncation_side = config.tokenizer.truncation_side
@@ -368,9 +368,11 @@ class AccelerateRLTrainer(BaseRLTrainer):
         self.eval_pipeline = eval_pipeline
 
 
-    def evaluate_custom(self):
+    def evaluate_custom(self, eval_fn):
         self.prepare_eval()
         self.model.eval()
+
+        eval_fn(self.eval_dataloader, self.model, self.tokenizer, self.accelerator.device, self.config)
 
 
         # seq_end_hidden_state = []
@@ -421,25 +423,46 @@ class AccelerateRLTrainer(BaseRLTrainer):
 
         # generated_answer_log_probs_mean_all = np.concatenate(generated_answer_log_probs_mean_all)
         # np.save(os.path.join(self.config.model.model_path, "oodsmallYesNo_log_probs_mean.npy"), generated_answer_log_probs_mean_all)
+        
+        
+        # yes_tokens = torch.Tensor([29871, 3869, 29889, 2]).int().to(self.accelerator.device)
+        # generated_answer_log_probs_mean_all = []
+        # for i_prompt, prompts in enumerate(self.eval_dataloader):
+        #     samples = torch.cat([prompts["input_ids"], yes_tokens.repeat(prompts["input_ids"].shape[0], 1)], dim=1)
+        #     labels = samples.clone()
+        #     labels[:,:prompts["input_ids"].shape[1]] = self.tokenizer.pad_token_id
+        #     outputs = self.model(input_ids= samples, attention_mask = samples!=self.tokenizer.pad_token_id, labels = labels)
+        #     shift_logits = outputs.logits[..., :-1, :].contiguous()
+        #     shift_labels = labels[..., 1:].contiguous()
+        #     loss_fct = torch.nn.CrossEntropyLoss(ignore_index=self.tokenizer.pad_token_id, reduce=False)
 
-        yes_tokens = torch.Tensor([29871, 3869, 29889, 2]).int().to(self.accelerator.device)
-        generated_answer_log_probs_mean_all = []
-        for i_prompt, prompts in enumerate(self.eval_dataloader):
-            samples = torch.cat([prompts["input_ids"], yes_tokens.repeat(prompts["input_ids"].shape[0], 1)], dim=1)
-            labels = samples.clone()
-            labels[:,:prompts["input_ids"].shape[1]] = self.tokenizer.pad_token_id
-            outputs = self.model(input_ids= samples, attention_mask = samples!=self.tokenizer.pad_token_id, labels = labels)
-            shift_logits = outputs.logits[..., :-1, :].contiguous()
-            shift_labels = labels[..., 1:].contiguous()
-            loss_fct = torch.nn.CrossEntropyLoss(ignore_index=self.tokenizer.pad_token_id, reduce=False)
+        #     loss = loss_fct(shift_logits.swapaxes(-1, -2), shift_labels)
+        #     avg_log_likelihood = -loss.sum(axis=1)/(loss!=0).sum(axis=1)
 
-            loss = loss_fct(shift_logits.swapaxes(-1, -2), shift_labels)
-            avg_log_likelihood = -loss.sum(axis=1)/(loss!=0).sum(axis=1)
+        #     generated_answer_log_probs_mean_all.append(avg_log_likelihood.tolist())
 
-            generated_answer_log_probs_mean_all.append(avg_log_likelihood.tolist())
+        # generated_answer_log_probs_mean_all = np.concatenate(generated_answer_log_probs_mean_all)
+        # np.save(os.path.join(self.config.model.model_path, "sft_ctrex_llama7B_2_commit_lr1e-5_2_oodsmallYesNo_yes_log_probs.npy"), generated_answer_log_probs_mean_all)
 
-        generated_answer_log_probs_mean_all = np.concatenate(generated_answer_log_probs_mean_all)
-        np.save(os.path.join(self.config.model.model_path, "ppo_rm_ctrex_llama7B_commit30_idk10_yes_log_probs.npy"), generated_answer_log_probs_mean_all)
+
+        # no_tokens = torch.Tensor([29871, 1939, 29889, 2]).int().to(self.accelerator.device)
+        # generated_answer_log_probs_mean_all = []
+        # for i_prompt, prompts in enumerate(self.eval_dataloader):
+        #     samples = torch.cat([prompts["input_ids"], no_tokens.repeat(prompts["input_ids"].shape[0], 1)], dim=1)
+        #     labels = samples.clone()
+        #     labels[:,:prompts["input_ids"].shape[1]] = self.tokenizer.pad_token_id
+        #     outputs = self.model(input_ids= samples, attention_mask = samples!=self.tokenizer.pad_token_id, labels = labels)
+        #     shift_logits = outputs.logits[..., :-1, :].contiguous()
+        #     shift_labels = labels[..., 1:].contiguous()
+        #     loss_fct = torch.nn.CrossEntropyLoss(ignore_index=self.tokenizer.pad_token_id, reduce=False)
+
+        #     loss = loss_fct(shift_logits.swapaxes(-1, -2), shift_labels)
+        #     avg_log_likelihood = -loss.sum(axis=1)/(loss!=0).sum(axis=1)
+
+        #     generated_answer_log_probs_mean_all.append(avg_log_likelihood.tolist())
+
+        # generated_answer_log_probs_mean_all = np.concatenate(generated_answer_log_probs_mean_all)
+        # np.save(os.path.join(self.config.model.model_path, "sft_ctrex_llama7B_2_commit_lr1e-5_2_oodsmallYesNo_no_log_probs.npy"), generated_answer_log_probs_mean_all)
 
 
 

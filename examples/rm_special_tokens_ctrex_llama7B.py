@@ -33,13 +33,13 @@ def answer_type_individial(output , answer) -> List[float]:
         output = output[: -len(" </s>")]
     if output[-len("</s>"):] == "</s>":
         output = output[: -len("</s>")]
-    if (output == " Yes."):
-        if answer == " Yes.":
+    if (output == "<True>"):
+        if answer == "<True>":
             answer_type = 0
         else:
             answer_type = 1
-    elif (output == " No."):
-        if answer == " No.":
+    elif (output == "<False>"):
+        if answer == "<False>":
             answer_type = 2
         else:
             answer_type = 3
@@ -52,19 +52,19 @@ def convert_template_to_prompt(template_sub_label_answer):
     assert(template in template2question.keys())
     question = template2question[template][1]
     question = question.replace("[X]", sub_label)
-    prompt = question + " The answer is " + answer + ". Is the answer to the question correct?"
+    prompt = question + " The answer is " + answer + "."
     return prompt
 
 def prepare_sample_yes(template_sub_label_answer_split):
     template, sub_label, answer, split = template_sub_label_answer_split
     prompt = convert_template_to_prompt((template, sub_label, answer))
-    response = " Yes."
+    response = "<True>"
     return (prompt, response)
 
 def prepare_sample_no(template_sub_label_answer_split):
     template, sub_label, answer, split = template_sub_label_answer_split
     prompt = convert_template_to_prompt((template, sub_label, answer))
-    response = " No."
+    response = "<False>"
     return (prompt, response)
 
 def prepare_prompt_yes(template_sub_label_answer_split):
@@ -72,7 +72,7 @@ def prepare_prompt_yes(template_sub_label_answer_split):
     prompt_str = convert_template_to_prompt((template, sub_label, answer))
     prompt = {}
     prompt["prompt"] = prompt_str
-    prompt["answer"] = " Yes."
+    prompt["answer"] = "<True>"
     prompt["split"] = split
     return prompt
 
@@ -81,7 +81,7 @@ def prepare_prompt_no(template_sub_label_answer_split):
     prompt_str = convert_template_to_prompt((template, sub_label, answer))
     prompt = {}
     prompt["prompt"] = prompt_str
-    prompt["answer"] = " No."
+    prompt["answer"] = "<False>"
     prompt["split"] = split
     return prompt
 
@@ -91,13 +91,15 @@ def main(hparams={}):
     config.train.total_steps = 30000
     config.train.eval_interval = 500
     config.train.checkpoint_interval = 500
-    config.train.checkpoint_dir = "ckpts/rm_ctrex_llama7B_certain_only"
+    config.train.checkpoint_dir = "ckpts/rm_ctrex_llama7B_special_tokens_50_50"
     # config.train.epochs = 100
     config.train.project_name = "trlx_rm_ctrex_llama7B"
-    config.train.run_name = "certain_only"
+    config.train.run_name = "special_tokens_50_50"
 
     config.model.model_path = "NousResearch/Llama-2-7b-hf"
     config.tokenizer.tokenizer_path = "NousResearch/Llama-2-7b-hf"
+    config.tokenizer.additional_special_tokens = ['<True>', '<False>']
+
 
     config.optimizer=OptimizerConfig(
             name="adamw", kwargs=dict(lr=2.0e-5, betas=(0.9, 0.95), eps=1.0e-8, weight_decay=1.0e-6)
@@ -142,10 +144,10 @@ def main(hparams={}):
     
 
     dataset_orig = load_dataset('relbert/t_rex')
-    ood_idxs = np.load("custom_trex/ood_points_small.npy")[:500]
+    ood_idxs = np.load("custom_trex/ood_points_small.npy")
     train_idxs = np.load("custom_trex/train_points.npy")
-    test_idxs = np.load("custom_trex/test_points_small.npy")[:500]
-    eval_train_idxs = train_idxs[:500]
+    test_idxs = np.load("custom_trex/test_points_small.npy")
+    eval_train_idxs = train_idxs[:3000]
 
     dataset = dataset_orig["train"].select(train_idxs)
     eval_train_dataset = dataset_orig["train"].select(eval_train_idxs)
@@ -157,25 +159,15 @@ def main(hparams={}):
     test_incorrect_tails = np.load("custom_trex/incorrect_tails/test_small_incorrect_tails.npy")
     ood_incorrect_tails = np.load("custom_trex/incorrect_tails/ood_small_incorrect_tails.npy")
 
-    # sft_train_correct = np.load("ckpts/sft_ctrex_llama7B_2_commit_lr1e-5_2/checkpoint_30000/hf_model/output_strings_train_linguistic_equivalence5.npy")
-    # train_certain_idxs = np.where(sft_train_correct==1)[0]
-    # train_uncertain_idxs = np.where(sft_train_correct==0)[0]
+    sft_train_correct = np.load("ckpts/sft_ctrex_llama7B_2_commit_lr1e-5_2/checkpoint_30000/hf_model/generated_answer_log_probs_mean_train.npy")
+    train_certain_idxs = np.where(np.e**sft_train_correct>0.9)[0]
 
-    # num_pts = min(len(train_certain_idxs), len(train_uncertain_idxs))
-
-    # train_certain_idxs = train_certain_idxs[:num_pts]
-    # train_uncertain_idxs = train_uncertain_idxs[:num_pts]
-
-    sft_log_probs = np.load("ckpts/sft_ctrex_llama7B_2_commit_lr1e-5_2/checkpoint_30000/hf_model/generated_answer_log_probs_mean_train.npy")
-    train_certain_idxs = np.where(np.e**sft_log_probs>0.9)[0]
-    # subsample_idxs = np.random.randint(0, len(dataset["relation"]), len(train_certain_idxs))
-
-    template_sub_label_answer = list(zip(np.array(dataset["relation"])[train_certain_idxs], np.array(dataset["head"])[train_certain_idxs], np.array(dataset["tail"])[train_certain_idxs], [0 for _ in range(len(train_certain_idxs))]))
-    # template_sub_label_answer = list(zip(dataset["relation"], dataset["head"], dataset["tail"], [0 for _ in range(len(dataset["relation"]))]))
+    # template_sub_label_answer = list(zip(np.array(dataset["relation"])[train_certain_idxs], np.array(dataset["head"])[train_certain_idxs], np.array(dataset["tail"])[train_certain_idxs], [0 for _ in range(len(train_certain_idxs))]))
+    template_sub_label_answer = list(zip(dataset["relation"], dataset["head"], dataset["tail"], [0 for _ in range(len(dataset["relation"]))]))
     train_samples_yes = list(map(prepare_sample_yes, template_sub_label_answer))
 
-    # template_sub_label_answer = list(zip(dataset["relation"], dataset["head"], train_incorrect_tails, [0 for _ in range(len(dataset["relation"]))]))
-    template_sub_label_answer = list(zip(np.array(dataset["relation"])[train_certain_idxs], np.array(dataset["head"])[train_certain_idxs], np.array(train_incorrect_tails)[train_certain_idxs], [0 for _ in range(len(train_certain_idxs))]))
+    template_sub_label_answer = list(zip(dataset["relation"], dataset["head"], train_incorrect_tails, [0 for _ in range(len(dataset["relation"]))]))
+    # template_sub_label_answer = list(zip(np.array(dataset["relation"])[train_certain_idxs], np.array(dataset["head"])[train_certain_idxs], np.array(train_incorrect_tails)[train_certain_idxs], [0 for _ in range(len(train_certain_idxs))]))
     train_samples_no = list(map(prepare_sample_no, template_sub_label_answer))
 
     train_samples = train_samples_yes+train_samples_no
@@ -206,7 +198,6 @@ def main(hparams={}):
     prompts_ood = prompts_ood_yes+prompts_ood_no
 
     prompts_eval = prompts_eval_train+prompts_test+prompts_ood
-
 
     trainer = trlx.train(
         samples=train_samples,

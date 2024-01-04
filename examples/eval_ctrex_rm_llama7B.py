@@ -79,17 +79,20 @@ def prepare_prompt_no(template_sub_label_answer_split):
 
 
 def main(hparams={}):
-    model_path = "ckpts/rm2_linguistic_equivalence_ctrex_llama7B_2gpu/checkpoint_20000/hf_model/"
+    model_path = "ckpts/rm_ctrex_llama7B_certain_only/checkpoint_10000/hf_model/"
 
     config = TRLConfig.update(default_sft_config().to_dict(), hparams) 
     config.model.model_path = model_path
 
-    config.train.batch_size = 128
+    config.train.batch_size = 32
 
     config.train.project_name = "trlx_eval"
     config.train.run_name = "eval"
 
     config.tokenizer.tokenizer_path = "NousResearch/Llama-2-7b-hf"
+
+    if "special_tokens" in model_path:
+        config.tokenizer.additional_special_tokens = ['<True>', '<False>']
 
     
     config.method.gen_kwargs=dict(max_new_tokens=40, do_sample=False)
@@ -103,42 +106,42 @@ def main(hparams={}):
     # )
 
     def metric_fn(samples: List[str], **kwargs):
-        answer_types = list(map(answer_type_individial, np.array(kwargs["outputs"])))
-        np.save(os.path.join(model_path, "ppo_rm_ctrex_llama7B_commit30_idk10_answer_types.npy"), answer_types)
+        # answer_types = list(map(answer_type_individial, np.array(kwargs["outputs"])))
+        # np.save(os.path.join(model_path, "ppo_rm_ctrex_llama7B_commit30_idk10_answer_types.npy"), answer_types)
         return {}    
 
 
-    generated_responses = np.load("ckpts/ppo_rm_ctrex_llama7B_commit30_idk10/checkpoint_030000/hf_model/output_strings_oodsmall.npy")
+    # generated_responses = np.load("ckpts/sft_ctrex_llama7B_2_commit_lr1e-5_2/checkpoint_30000/hf_model/output_strings_oodsmall.npy")
 
-    lines_all = []
-    for response in generated_responses:
-        if '<unk> ' in response:
-            line = response.split('<unk> ')[1]
-        line = line.split(' Label: ')[0].strip()
-        lines_all.append(line)
+    # lines_all = []
+    # for response in generated_responses:
+    #     if '<unk> ' in response:
+    #         line = response.split('<unk> ')[1]
+    #     line = line.split(' Label: ')[0].strip()
+    #     lines_all.append(line)
     
-    prompts = list(map(prepare_prompt, lines_all))
+    # prompts = list(map(prepare_prompt, lines_all))
 
 
 
 
-    # dataset_orig = load_dataset('relbert/t_rex')
-    # ood_idxs = np.load("custom_trex/ood_points_small.npy")
-    # ood_dataset = dataset_orig["train"].select(ood_idxs)
-    # ood_incorrect_tails = np.load("custom_trex/ood_small_incorrect_tails.npy")
+    dataset_orig = load_dataset('relbert/t_rex')
+    ood_idxs = np.load("custom_trex/ood_points_small.npy")
+    ood_dataset = dataset_orig["train"].select(ood_idxs)
+    ood_incorrect_tails = np.load("custom_trex/incorrect_tails/ood_small_incorrect_tails.npy")
 
-    # template_sub_label_answer_ood = list(zip(ood_dataset["relation"], ood_dataset["head"], ood_dataset["tail"], [3 for _ in range(len(ood_dataset["relation"]))]))
-    # prompts_ood_yes = list(map(prepare_prompt_yes, template_sub_label_answer_ood))
+    template_sub_label_answer_ood = list(zip(ood_dataset["relation"], ood_dataset["head"], ood_dataset["tail"], [3 for _ in range(len(ood_dataset["relation"]))]))
+    prompts_ood_yes = list(map(prepare_prompt_yes, template_sub_label_answer_ood))
 
-    # template_sub_label_answer_ood = list(zip(ood_dataset["relation"], ood_dataset["head"], ood_incorrect_tails, [3 for _ in range(len(ood_dataset["relation"]))]))
-    # prompts_ood_no = list(map(prepare_prompt_no, template_sub_label_answer_ood))
+    template_sub_label_answer_ood = list(zip(ood_dataset["relation"], ood_dataset["head"], ood_incorrect_tails, [3 for _ in range(len(ood_dataset["relation"]))]))
+    prompts_ood_no = list(map(prepare_prompt_no, template_sub_label_answer_ood))
 
-    # prompts_ood = prompts_ood_yes+prompts_ood_no
+    prompts_ood = prompts_ood_yes+prompts_ood_no
 
 
 
     trainer = trlx.eval(
-        eval_prompts=prompts,
+        eval_prompts=prompts_ood,
         # eval_prompts=prompts_train,
         metric_fn=metric_fn,
         config=config,

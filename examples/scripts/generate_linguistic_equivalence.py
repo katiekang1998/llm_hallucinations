@@ -112,89 +112,89 @@ Ex 4 Equivalent? Yes
             print("EXCEPTION", num_tries)
             time.sleep(3)
             num_tries+=1
-
-
-
     
+if __name__ == "__main__":
 
-# data = np.load('../ckpts/sft_ctrex_llama7B_2_commit_lr1e-5_2/checkpoint_30000/hf_model/output_strings_train.npy')
+    # data = np.load('../ckpts/sft_ctrex_llama7B_2_commit_lr1e-5_2/checkpoint_30000/hf_model/output_strings_train.npy')
 
-data = np.load('../ckpts/sft_ctrex_llama7B_2_commit_lr1e-5_2/checkpoint_30000/hf_model/output_strings_oodsmall.npy')
+    data = np.load('../ckpts/ppo_rm_ctrex_llama7B_commit30_idk10/checkpoint_030000/hf_model/output_strings_oodsmall.npy')
 
-questions_NEM = []
-answers_NEM = []
-predictions_NEM = []
-exact_match_idxs = []
-idk_idxs = []
-not_exact_match_idxs = []
-for j in tqdm(range(len(data))):
-    line = data[j]
-    answer = line.split('Label: ')[1].strip()
-    if line.split("? ")[1].split('Label:')[0].strip() == "I don't know.":
-        idk_idxs.append(j)
-    else:
-        try:
-            prediction = line.split('The answer is')[1].split('Label:')[0].strip()[0:-1]
-        except:
-            print(line)
-            # prediction = line.split('The Answer Is')[1].split('Label:')[0].strip()[0:-1]
-            prediction = line.split('Label:')[0].strip()[0:-1]
-
-        question = line.split('<unk>')[-1].split('?')[0].strip() + '?'
-
-        if exact_match_score(answer, prediction):
-            exact_match_idxs.append(j)
+    questions_NEM = []
+    answers_NEM = []
+    predictions_NEM = []
+    exact_match_idxs = []
+    idk_idxs = []
+    not_exact_match_idxs = []
+    for j in tqdm(range(len(data))):
+        line = data[j]
+        answer = line.split('Label: ')[1].strip()
+        if line.split("? ")[1].split('Label:')[0].strip() == "I don't know.":
+            idk_idxs.append(j)
         else:
-            questions_NEM.append(question)
-            answers_NEM.append(answer)
-            predictions_NEM.append(prediction)
-            not_exact_match_idxs.append(j)
+            try:
+                prediction = line.split('The answer is')[1].split('Label:')[0].strip()[0:-1]
+            except:
+                print(line)
+                # prediction = line.split('The Answer Is')[1].split('Label:')[0].strip()[0:-1]
+                prediction = line.split('Label:')[0].strip()[0:-1]
 
-questions_NEM = np.array(questions_NEM)
-answers_NEM = np.array(answers_NEM)
-predictions_NEM = np.array(predictions_NEM)
-not_exact_match_idxs = np.array(not_exact_match_idxs)
+            question = line.split('<unk>')[-1].split('?')[0].strip() + '?'
 
+            if exact_match_score(answer, prediction):
+                exact_match_idxs.append(j)
+            else:
+                questions_NEM.append(question)
+                answers_NEM.append(answer)
+                predictions_NEM.append(prediction)
+                not_exact_match_idxs.append(j)
 
-linguistically_equivalent_idxs = []
-not_linguistically_equivalent_idxs = []
+    questions_NEM = np.array(questions_NEM)
+    answers_NEM = np.array(answers_NEM)
+    predictions_NEM = np.array(predictions_NEM)
+    not_exact_match_idxs = np.array(not_exact_match_idxs)
+    idk_idxs = np.array(idk_idxs)
 
-prev_equivalence = np.ones(len(data))*-1
+    linguistically_equivalent_idxs = []
+    not_linguistically_equivalent_idxs = []
 
-num_points_per_prompt = 20
-for i in tqdm(range(len(not_exact_match_idxs)//num_points_per_prompt, len(not_exact_match_idxs)//num_points_per_prompt+1)):
-    results = call_instructgpt_with_answers(questions_NEM[i*num_points_per_prompt:(i+1)*num_points_per_prompt], 
-    answers_NEM[i*num_points_per_prompt:(i+1)*num_points_per_prompt]
-    , predictions_NEM[i*num_points_per_prompt:(i+1)*num_points_per_prompt])
+    prev_equivalence = np.ones(len(data))*-1
 
-    points_in_consideration = np.arange(i*num_points_per_prompt, min((i+1)*num_points_per_prompt, len(not_exact_match_idxs)))
-    linguistically_equivalent_idxs.append(not_exact_match_idxs[points_in_consideration[np.where(results == 1)[0]]])
-    not_linguistically_equivalent_idxs.append(not_exact_match_idxs[points_in_consideration[np.where(results == 0)[0]]])
+    num_points_per_prompt = 20
+    for i in tqdm(range(0, len(not_exact_match_idxs)//num_points_per_prompt+1)):
+        results = call_instructgpt_with_answers(questions_NEM[i*num_points_per_prompt:(i+1)*num_points_per_prompt], 
+        answers_NEM[i*num_points_per_prompt:(i+1)*num_points_per_prompt]
+        , predictions_NEM[i*num_points_per_prompt:(i+1)*num_points_per_prompt])
 
-    if i%20 == True:
-        equivalence = prev_equivalence
-        equivalence[np.array(exact_match_idxs)] = 1
+        points_in_consideration = np.arange(i*num_points_per_prompt, min((i+1)*num_points_per_prompt, len(not_exact_match_idxs)))
+        linguistically_equivalent_idxs.append(not_exact_match_idxs[points_in_consideration[np.where(results == 1)[0]]])
+        not_linguistically_equivalent_idxs.append(not_exact_match_idxs[points_in_consideration[np.where(results == 0)[0]]])
 
-        equivalence[np.concatenate(linguistically_equivalent_idxs)] = 1
-        equivalence[np.concatenate(not_linguistically_equivalent_idxs)] = 0
-        np.save("../ckpts/sft_ctrex_llama7B_2_commit_lr1e-5_2/checkpoint_30000/hf_model/output_strings_oodsmall_linguistic_equivalence2.npy", equivalence)
-        # np.save("../ckpts/sft_ctrex_llama7B_2_commit_lr1e-5_2/checkpoint_30000/hf_model/output_strings_oodsmall_linguistic_equivalence.npy", equivalence)
-        print(i, len(exact_match_idxs), len(np.concatenate(linguistically_equivalent_idxs)), len(np.concatenate(not_linguistically_equivalent_idxs)))
+        if i%20 == True:
+            equivalence = prev_equivalence
+            equivalence[np.array(exact_match_idxs)] = 1
 
-equivalence = prev_equivalence
-equivalence[np.array(exact_match_idxs)] = 1
-equivalence[np.concatenate(linguistically_equivalent_idxs)] = 1
-equivalence[np.concatenate(not_linguistically_equivalent_idxs)] = 0
-np.save("../ckpts/sft_ctrex_llama7B_2_commit_lr1e-5_2/checkpoint_30000/hf_model/output_strings_oodsmall_linguistic_equivalence2.npy", equivalence)
-# np.save("../ckpts/sft_ctrex_llama7B_2_commit_lr1e-5_2/checkpoint_30000/hf_model/output_strings_oodsmall_linguistic_equivalence.npy", equivalence)
-print(i, len(exact_match_idxs), len(np.concatenate(linguistically_equivalent_idxs)), len(np.concatenate(not_linguistically_equivalent_idxs)))
+            equivalence[np.concatenate(linguistically_equivalent_idxs)] = 1
+            equivalence[np.concatenate(not_linguistically_equivalent_idxs)] = 0
+            equivalence[idk_idxs] = 2
+            np.save("../ckpts/ppo_rm_ctrex_llama7B_commit30_idk10/checkpoint_030000/hf_model/output_strings_oodsmall_linguistic_equivalence.npy", equivalence)
+            # np.save("../ckpts/sft_ctrex_llama7B_2_commit_lr1e-5_2/checkpoint_30000/hf_model/output_strings_oodsmall_linguistic_equivalence.npy", equivalence)
+            print(i, len(exact_match_idxs), len(np.concatenate(linguistically_equivalent_idxs)), len(np.concatenate(not_linguistically_equivalent_idxs)))
 
-# import numpy as np
-# data = np.load('../ckpts/sft_ctrex_llama7B_2_commit_lr1e-5_2/checkpoint_30000/hf_model/output_strings_train.npy')
-# linguistic_equivalence = np.load("../ckpts/sft_ctrex_llama7B_2_commit_lr1e-5_2/checkpoint_30000/hf_model/output_strings_train_linguistic_equivalence.npy")
+    equivalence = prev_equivalence
+    equivalence[np.array(exact_match_idxs)] = 1
+    equivalence[np.concatenate(linguistically_equivalent_idxs)] = 1
+    equivalence[np.concatenate(not_linguistically_equivalent_idxs)] = 0
+    equivalence[idk_idxs] = 2
+    np.save("../ckpts/ppo_rm_ctrex_llama7B_commit30_idk10/checkpoint_030000/hf_model/output_strings_oodsmall_linguistic_equivalence.npy", equivalence)
+    # np.save("../ckpts/sft_ctrex_llama7B_2_commit_lr1e-5_2/checkpoint_30000/hf_model/output_strings_oodsmall_linguistic_equivalence.npy", equivalence)
+    print(i, len(exact_match_idxs), len(np.concatenate(linguistically_equivalent_idxs)), len(np.concatenate(not_linguistically_equivalent_idxs)))
 
-# for i in range(len(linguistic_equivalence)):
-#     if linguistic_equivalence[i] == 1:
-#         print(data[i])
-#     elif linguistic_equivalence[i] == -1:
-#         1/0
+    # import numpy as np
+    # data = np.load('../ckpts/sft_ctrex_llama7B_2_commit_lr1e-5_2/checkpoint_30000/hf_model/output_strings_train.npy')
+    # linguistic_equivalence = np.load("../ckpts/sft_ctrex_llama7B_2_commit_lr1e-5_2/checkpoint_30000/hf_model/output_strings_train_linguistic_equivalence.npy")
+
+    # for i in range(len(linguistic_equivalence)):
+    #     if linguistic_equivalence[i] == 1:
+    #         print(data[i])
+    #     elif linguistic_equivalence[i] == -1:
+    #         1/0

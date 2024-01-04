@@ -137,6 +137,7 @@ def eval(  # noqa: C901
     metric_fn: Optional[Callable[[List[str], List[str], List[str]], Dict[str, List[float]]]] = None,
     config: Optional[TRLConfig] = None,
     stop_sequences: Optional[List[str]] = [],
+    eval_fn: Optional[Callable[[List[str], List[str], List[str]], Dict[str, List[float]]]] = None,
 ):
     set_seed(config.train.seed)
 
@@ -156,5 +157,9 @@ def eval(  # noqa: C901
     )
     trainer.add_eval_pipeline(eval_pipeline)
 
-    trainer.evaluate_custom()
+    if eval_fn is None:
+        trainer.evaluate_custom()
+    else:
+        trainer.evaluate_custom(eval_fn)
+    
     return trainer

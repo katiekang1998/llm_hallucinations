@@ -20,6 +20,8 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 from accelerate import Accelerator  # type: ignore
 import math
 
+from scripts.generate_linguistic_equivalence import call_instructgpt_with_answers
+
 
 from trlx.data.configs import (
     ModelConfig,
@@ -75,6 +77,8 @@ def answer_type_individial(output , answer) -> List[float]:
         answer_type = 3
     return answer_type
 
+
+
 def main(hparams={}):
     
     # Merge sweep config with default config if given
@@ -82,13 +86,13 @@ def main(hparams={}):
     config.model.CORRECT_REWARD=CORRECT_REWARD
     config.model.CORRECT_HEDGE_REWARD = CORRECT_HEDGE_REWARD
     config.model.INCORRECT_HEDGE_REWARD = INCORRECT_HEDGE_REWARD
-    config.model.model_path = "ckpts/sft_ctrex_llama7B_2_commit_idk_lr1e-5_2/checkpoint_005000/hf_model"
+    config.model.model_path = "ckpts/sft_ctrex_llama7B_2_commit_idk_lr1e-5_2/checkpoint_03000/hf_model"
     config.tokenizer.tokenizer_path = "NousResearch/Llama-2-7b-hf"
 
-    config.train.checkpoint_dir = "ckpts/ppo_rm_ctrex_llama7B_commit30_idk10"
+    config.train.checkpoint_dir = f"ckpts/ppo_rm_ctrex_llama7B_commit{CORRECT_REWARD}_idk10_no_value_detach"
     # config.train.epochs = 100
-    config.train.project_name = "ppo_rm_ctrex_llama7B"
-    config.train.run_name = "commit30_idk10"
+    config.train.project_name = "ppo_rm_ctrex_llama7B_2"
+    config.train.run_name = f"commit{CORRECT_REWARD}_idk10_no_value_detach"
     config.method.cliprange=0.005
     config.train.eval_interval= 500
     config.train.checkpoint_interval = 1000
@@ -199,7 +203,7 @@ def main(hparams={}):
             if answer_types[i]==2:
                 rewards.append(10)
             elif answer_types[i]==0 or answer_types[i]==1:
-                if likelihood[i]>0.87:
+                if likelihood[i]>0.89:
                     rewards.append(CORRECT_REWARD)
                 else:
                     rewards.append(0)
@@ -220,25 +224,61 @@ def main(hparams={}):
             idxs = np.where(np.array(kwargs["split"])==split_idx)[0]
             
             answer_types = list(map(answer_type_individial, np.array(kwargs["outputs"])[idxs], np.array(kwargs["answer"])[idxs]))
-            
-            
-            commit_correct = ([1 if x == 0 else 0 for x in answer_types ])
-            commit_wrong = ([1 if x == 1 else 0 for x in answer_types ])
-            dont_know = ([1 if x == 2 else 0 for x in answer_types ])
-            wrong = ([1 if x == 3 else 0  for x in answer_types])
-            hedge_correct = ([1 if x == 4 else 0 for x in answer_types ])
-            hedge_wrong = ([1 if x == 5 else 0 for x in answer_types ])
 
-            reward = np.array(commit_correct)*CORRECT_REWARD + np.array(commit_wrong)*0 + np.array(dont_know)*10 + np.array(wrong)*0 + np.array(hedge_correct)*CORRECT_HEDGE_REWARD + np.array(hedge_wrong)*INCORRECT_HEDGE_REWARD
-            total = len(answer_types)
+            not_exact_match_idxs = np.where(np.array(answer_types)==1)[0]
+
+            questions_NEM = []
+            answers_NEM = []
+            predictions_NEM = []
+            weird_idxs = []
+            samples = np.array(samples)
+            for idx in not_exact_match_idxs:
+                question, prediction = np.array(samples[idxs][idx].split(" The answer is "))[:2]
+                question = question.split("<unk> ")[-1]
+                prediction = prediction[:-1]
+                questions_NEM.append(question)
+                answers_NEM.append(np.array(kwargs["answer"])[idxs][idx])
+                predictions_NEM.append(prediction)
+            questions_NEM = np.array(questions_NEM)
+            answers_NEM = np.array(answers_NEM)
+            predictions_NEM = np.array(predictions_NEM)
+
+            linguistically_equivalent_idxs = []
+            not_linguistically_equivalent_idxs = []
+            num_points_per_prompt = 20
             
-            output_dict[split_names[split_idx]+"/commit_correct"] = np.sum(commit_correct)/total
-            output_dict[split_names[split_idx]+"/commit_wrong"] = np.sum(commit_wrong)/total
-            output_dict[split_names[split_idx]+"/dont_know"] = np.sum(dont_know)/total
-            output_dict[split_names[split_idx]+"/wrong"] = np.sum(wrong)/total
-            output_dict[split_names[split_idx]+"/hedge_correct"] = np.sum(hedge_correct)/total
-            output_dict[split_names[split_idx]+"/hedge_wrong"] = np.sum(hedge_wrong)/total
-            output_dict[split_names[split_idx]+"/reward"] = np.sum(reward)/total
+
+            for i in (range(0, int(math.ceil(len(not_exact_match_idxs)/num_points_per_prompt)))):
+                results = call_instructgpt_with_answers(questions_NEM[i*num_points_per_prompt:(i+1)*num_points_per_prompt], 
+                answers_NEM[i*num_points_per_prompt:(i+1)*num_points_per_prompt]
+                , predictions_NEM[i*num_points_per_prompt:(i+1)*num_points_per_prompt])
+
+                points_in_consideration = np.arange(i*num_points_per_prompt, min((i+1)*num_points_per_prompt, len(not_exact_match_idxs)))
+                linguistically_equivalent_idxs.append(not_exact_match_idxs[points_in_consideration[np.where(results == 1)[0]]])
+                not_linguistically_equivalent_idxs.append(not_exact_match_idxs[points_in_consideration[np.where(results == 0)[0]]])
+
+            linguistically_equivalent_idxs = np.concatenate(linguistically_equivalent_idxs)
+            not_linguistically_equivalent_idxs = np.concatenate(not_linguistically_equivalent_idxs)
+            
+            
+            # commit_correct = ([1 if x == 0 else 0 for x in answer_types ])
+            # commit_wrong = ([1 if x == 1 else 0 for x in answer_types ])
+            num_commit_correct = sum([1 if x == 0 else 0 for x in answer_types ]) + len(linguistically_equivalent_idxs)
+            num_commit_wrong = len(not_linguistically_equivalent_idxs)
+            num_dont_know = sum([1 if x == 2 else 0 for x in answer_types ])
+            num_wrong = sum([1 if x == 3 else 0  for x in answer_types])
+
+            # hedge_correct = ([1 if x == 4 else 0 for x in answer_types ])
+            # hedge_wrong = ([1 if x == 5 else 0 for x in answer_types ])
+            total = len(answer_types)
+            reward =(num_commit_correct*CORRECT_REWARD + np.array(num_commit_wrong)*0 + np.array(num_dont_know)*10 + np.array(num_wrong)*0)/total #+ np.array(hedge_correct)*CORRECT_HEDGE_REWARD + np.array(hedge_wrong)*INCORRECT_HEDGE_REWARD
+            
+            
+            output_dict[split_names[split_idx]+"/commit_correct"] = num_commit_correct/total
+            output_dict[split_names[split_idx]+"/commit_wrong"] = num_commit_wrong/total
+            output_dict[split_names[split_idx]+"/dont_know"] = num_dont_know/total
+            output_dict[split_names[split_idx]+"/wrong"] = num_wrong/total
+            output_dict[split_names[split_idx]+"/reward"] = reward
         return output_dict
 
     trlx.train(

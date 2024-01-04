@@ -356,9 +356,11 @@ class AutoModelForCausalLMWithValueHead(PreTrainedModelWrapper):
                 **forward_kwargs,
             )[0].squeeze(-1)
         else:
-            # import IPython; IPython.embed()
             detached_hidden =  outputs.hidden_states[-(self.num_value_layers_unfrozen + 1)].detach()
             value = self.v_head(detached_hidden).squeeze(-1)
+
+            # hidden =  outputs.hidden_states[-(self.num_value_layers_unfrozen + 1)]
+            # value = self.v_head(hidden).squeeze(-1)
 
         if not return_dict:
             outputs = (outputs.logits,) + outputs[1:] + (value,)
