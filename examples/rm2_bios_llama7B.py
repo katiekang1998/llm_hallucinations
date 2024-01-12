@@ -37,6 +37,20 @@ def error_individial(output , answer) -> List[float]:
     return abs(answer-prediction)
 
 
+def convert_output_to_int(output):
+    if output[-len(" </s>"):] == " </s>":
+        output = output[: -len(" </s>")]
+    if output[-len("</s>"):] == "</s>":
+        output = output[: -len("</s>")]
+
+    output = output[1: -1]
+    try:
+        prediction = int(output)
+    except:
+        return -1
+
+    return prediction
+
 
 def prepare_prompt_correct(line, num_correct):
     prompt = {}
@@ -67,10 +81,10 @@ def main(hparams={}):
     config.train.eval_interval = 500
     config.train.checkpoint_interval = 500
     config.train.batch_size=32
-    config.train.checkpoint_dir = "ckpts/rm2_bios_llama7B_5"
+    config.train.checkpoint_dir = "ckpts/rm2_bios_llama7B_5_log_correct_ratio"
     # config.train.epochs = 100
     config.train.project_name = "trlx_rm2_bio2_llama7B"
-    config.train.run_name = "train10000_5"
+    config.train.run_name = "train10000_5_log_correct_ratio"
 
     config.model.model_path = "NousResearch/Llama-2-7b-hf"
     config.tokenizer.tokenizer_path = "NousResearch/Llama-2-7b-hf"
@@ -116,10 +130,25 @@ def main(hparams={}):
         else:
             total_avg_error = -1
 
+
+        num_correct_predictions = np.array(list(map(convert_output_to_int, np.array(kwargs["outputs"][:num_samples//2]))))
+        num_total_predictions = np.array(list(map(convert_output_to_int, np.array(kwargs["outputs"][num_samples//2:]))))
+
+        correct_form_idxs = np.where((num_correct_predictions>=0)*(num_total_predictions>=0))[0]
+
+        correct_ratio = np.array(kwargs["answer"][:num_samples//2])/np.array(kwargs["answer"][num_samples//2:])
+        correct_ratio = correct_ratio[correct_form_idxs]
+
+        num_total_predictions = np.clip(num_total_predictions, 0.01, 10)    
+        correct_ratio_predictions = np.clip(num_correct_predictions[correct_form_idxs]/num_total_predictions[correct_form_idxs], 0, 1)
+
+        correct_ratio_error = np.abs(correct_ratio-correct_ratio_predictions)
+
         output_dict["test/factuality_wrong_form_frac"] = float(factuality_wrong_form_frac)
         output_dict["test/factuality_avg_error"] = float(factuality_avg_error)
         output_dict["test/total_wrong_form_frac"] = float(total_wrong_form_frac)
         output_dict["test/total_avg_error"] = float(total_avg_error)
+        output_dict["test/correct_ratio_error"] = float(np.mean(correct_ratio_error))
         
         return output_dict
     

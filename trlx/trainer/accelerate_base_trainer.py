@@ -371,8 +371,9 @@ class AccelerateRLTrainer(BaseRLTrainer):
     def evaluate_custom(self, eval_fn):
         self.prepare_eval()
         self.model.eval()
-
-        eval_fn(self.eval_dataloader, self.model, self.tokenizer, self.accelerator.device, self.config)
+        
+        if eval_fn is not None:
+            eval_fn(self.eval_dataloader, self.model, self.tokenizer, self.accelerator.device, self.config)
 
 
         # seq_end_hidden_state = []

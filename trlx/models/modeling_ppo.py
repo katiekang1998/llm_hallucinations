@@ -539,8 +539,10 @@ class ModelBranch(transformers.PreTrainedModel):
         super().__init__(base_model.config)
 
         # The branch is defined by the last `num_layers_unfrozen` layers of the pretrained model
-
-        decoder_blocks = hf_get_decoder_blocks(base_model)[-num_layers_unfrozen:]
+        if num_layers_unfrozen < 0:
+            decoder_blocks = hf_get_decoder_blocks(base_model)
+        else:
+            decoder_blocks = hf_get_decoder_blocks(base_model)[-num_layers_unfrozen:]
         final_norm = hf_get_decoder_final_norm(base_model)
         lm_head = hf_get_lm_head(base_model)
 
@@ -1041,7 +1043,7 @@ class LlamaModelBranch(ModelBranch):
         # embed positions
         if attention_mask is None:
             attention_mask = torch.ones(
-                (batch_size, seq_length_with_past), dtype=torch.bool, device=inputs_embeds.device
+                (batch_size, seq_length_with_past), dtype=torch.bool, device=hidden_states.device
             )
         attention_mask = self._prepare_decoder_attention_mask(
             attention_mask, (batch_size, seq_length), hidden_states, past_key_values_length

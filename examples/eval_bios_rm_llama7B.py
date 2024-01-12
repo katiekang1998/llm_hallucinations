@@ -11,7 +11,7 @@ from trlx.data.default_configs import TRLConfig, default_sft_config, default_ppo
 import numpy as np
 from peft import LoraConfig
 from peft.utils.config import TaskType
-
+import pickle
 import torch
 
 from trlx.data.configs import (
@@ -51,7 +51,7 @@ def prepare_prompt_total(line, num_total):
     return prompt
 
 def main(hparams={}):
-    model_path = "ckpts/rm2_bios_llama7B_5/checkpoint_05000/hf_model/"
+    model_path = "ckpts/rm2_bios_llama7B_5/checkpoint_30000/hf_model/"
 
     config = TRLConfig.update(default_sft_config().to_dict(), hparams) 
     config.model.model_path = model_path
@@ -109,40 +109,81 @@ def main(hparams={}):
         return output_dict
 
 
-    with open("ckpts/sft_bios_new_llama7B/checkpoint_20000/hf_model/factscores_test_medium.json", "r") as f:
-        factscores = json.load(f)
+    # with open("ckpts/sft_bios_new_llama7B/checkpoint_20000/hf_model/factscores_test_medium.json", "r") as f:
+    #     factscores = json.load(f)
 
-    num_true_all = []
-    num_total_all = []
-    skipped_idxs = []
-    for i in range(len(factscores["decisions"])):
-        decison = factscores["decisions"][i]
-        if decison == None:
-            skipped_idxs.append(i)
-        else:
-            num_total_all.append(len(decison))
-            num_true_all.append(np.sum([fact["is_supported"] for fact in decison]))
+    # num_true_all = []
+    # num_total_all = []
+    # skipped_idxs = []
+    # for i in range(len(factscores["decisions"])):
+    #     decison = factscores["decisions"][i]
+    #     if decison == None:
+    #         skipped_idxs.append(i)
+    #     else:
+    #         num_total_all.append(len(decison))
+    #         num_true_all.append(np.sum([fact["is_supported"] for fact in decison]))
 
-    generated_responses = np.load("ckpts/sft_bios_new_llama7B/checkpoint_20000/hf_model/output_strings_test_medium.npy")
+    # generated_responses = np.load("ckpts/sft_bios_new_llama7B/checkpoint_20000/hf_model/output_strings_test_medium.npy")
+    # lines_all = []
+    # for i in range(len(generated_responses)):
+    #     response = generated_responses[i]
+    #     if i not in skipped_idxs:
+    #         # if '<unk> ' in response:
+    #         #     line = response.split('<unk> ')[1]
+    #         line = response.split(': ')[1]
+    #         lines_all.append(line)
+
+
+
+
+    with open('biographies/train_bios.pkl', 'rb') as fp:
+        train_data = pickle.load(fp)
+
+    lines_all = train_data["bio"][:5000]
+    lines_all = list(map(lambda x: x.lstrip(), lines_all))
+    num_true_all = [-1 for _ in range(len(lines_all))]
+    num_total_all = [-1 for _ in range(len(lines_all))]
+
+    names = []
+    bios = []
+
+    for i in range(len(lines_all)):
+        line = lines_all[i]
+        if " is " in line:
+            output = line.split(" is ")
+            names.append(output[0])
+
+            bio = ""
+            for j in range(1, len(output)):
+                bio+= " is " + output[j]
+            bios.append(" is "+bio)
+
+        elif " was " in line:
+            output = line.split(" was ")
+            names.append(output[0])
+
+            bio = ""
+            for j in range(1, len(output)):
+                bio+= " was " + output[j]
+            bios.append(" was "+bio)
+
     lines_all = []
-    for i in range(len(generated_responses)):
-        response = generated_responses[i]
-        if i not in skipped_idxs:
-            # if '<unk> ' in response:
-            #     line = response.split('<unk> ')[1]
-            line = response.split(': ')[1]
-            lines_all.append(line)
+    rand_idxs = np.random.choice(len(names), len(names), replace=False)
+    for i in range(len(names)):
+
+        lines_all.append(names[rand_idxs[i]]+bios[i])
 
 
-
-    eval_type = "total"
+    eval_type = "factuality"
 
     if eval_type == "factuality":
         test_prompts = list(map(prepare_prompt_correct, lines_all, num_true_all))
-        save_file_name  = "test_medium_num_correct_zero_to_six_probs.npy"
+        # save_file_name  = "test_medium_num_correct_zero_to_six_probs.npy"
+        save_file_name = "false_bios_num_correct_zero_to_six_probs.npy"
     elif eval_type == "total":
         test_prompts = list(map(prepare_prompt_total, lines_all, num_total_all))
-        save_file_name  = "test_medium_num_total_zero_to_six_probs.npy"
+        # save_file_name  = "test_medium_num_total_zero_to_six_probs.npy"
+        save_file_name = "false_bios_num_total_zero_to_six_probs.npy"
 
 
 

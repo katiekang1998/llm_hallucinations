@@ -12,6 +12,7 @@ import numpy as np
 from peft import LoraConfig
 from peft.utils.config import TaskType
 import wikipediaapi
+from factscore.factscorer import FactScorer
 
 import pickle
 
@@ -27,13 +28,24 @@ from trlx.data.configs import (
 
 CORRECT_REWARD = 14
 
+# def prepare_sample(name, bio):
+#     question = "Write a one sentence biography for "+name+":"
+#     return (question, bio)
+
+# def prepare_prompt(name):
+#     prompt = {}
+#     prompt["prompt"] = "Write a one sentence biography for "+name+":"
+#     return prompt
+
+
 def prepare_sample(name, bio):
-    question = "Write a one sentence biography for "+name+":"
-    return (question, bio)
+    question = "Write a biography for "+name+"."
+    return (question, " Bio: " + bio)
 
 def prepare_prompt(name):
     prompt = {}
-    prompt["prompt"] = "Write a one sentence biography for "+name+":"
+    prompt["prompt"] = "Write a biography for "+name+"."
+    prompt["name"] = name
     return prompt
 
 def main(hparams={}):
@@ -41,11 +53,13 @@ def main(hparams={}):
     config = TRLConfig.update(default_sft_config().to_dict(), hparams) 
     config.train.total_steps = 30000
     config.train.eval_interval = 500
+    # config.train.eval_interval = 50
+
     config.train.checkpoint_interval = 500
-    config.train.checkpoint_dir = "ckpts/sft_bios_new_llama7B"
+    config.train.checkpoint_dir = "ckpts/sft_bios_new_llama7B_2"
     # config.train.epochs = 100
     config.train.project_name = "trlx_sft_bios_llama7B"
-    config.train.run_name = "new"
+    config.train.run_name = "new_2"
     config.train.num_log_samples = -1
     config.train.batch_size = 8
 
@@ -67,31 +81,65 @@ def main(hparams={}):
     )
 
     config.method.gen_kwargs=dict(max_new_tokens=200, top_k=0, top_p=1.0, do_sample=True)
+    fs = FactScorer(openai_key="/data/katie_kang/openai_key_file.txt", data_dir="/data/katie_kang/trlx/examples/.cache/factscore", cache_dir="/data/katie_kang/trlx/examples/.cache/factscore")
 
     def metric_fn(samples: List[str], **kwargs):
-        # answer_types = list(map(answer_type_individial, np.array(kwargs["outputs"])[idxs], np.array(kwargs["answer"])[idxs]))
+        names = kwargs["name"]
+        outputs = kwargs["outputs"]
 
+        good_idxs = []
+        bad_idxs = []
+        good_outputs = []
+        for i in range(len(outputs)):
+            output = outputs[i]
+            if output[-len(" </s>"):] == " </s>":
+                output = output[: -len(" </s>")]
+            if output[-len("</s>"):] == "</s>":
+                output = output[: -len("</s>")]
 
-        # commit_correct = ([1 if x == 0 else 0 for x in answer_types ])
-        # commit_wrong = ([1 if x == 1 else 0 for x in answer_types ])
-        # dont_know = ([1 if x == 2 else 0 for x in answer_types ])
-        # wrong = ([1 if x == 3 else 0  for x in answer_types])
-        # hedge_correct = ([1 if x == 4 else 0 for x in answer_types ])
-        # hedge_wrong = ([1 if x == 5 else 0 for x in answer_types ])
+            if output[: len(" Bio: ")] == " Bio: " and output[-1] == ".":
+                good_outputs.append(output[len(" Bio: "):])
+                good_idxs.append(i)
+            else:
+                bad_idxs.append(i)
 
-        # reward = np.array(commit_correct)*CORRECT_REWARD + np.array(commit_wrong)*0 + np.array(dont_know)*10 + np.array(wrong)*0
-        # total = len(answer_types)
+        output_dict = {}
         
-        # output_dict[split_names[split_idx]+"/commit_correct"] = np.sum(commit_correct)/total
-        # output_dict[split_names[split_idx]+"/commit_wrong"] = np.sum(commit_wrong)/total
-        # output_dict[split_names[split_idx]+"/dont_know"] = np.sum(dont_know)/total
-        # output_dict[split_names[split_idx]+"/hedge_correct"] = np.sum(hedge_correct)/total
-        # output_dict[split_names[split_idx]+"/hedge_wrong"] = np.sum(hedge_wrong)/total
-        # output_dict[split_names[split_idx]+"/wrong"] = np.sum(wrong)/total
-        # output_dict[split_names[split_idx]+"/reward"] = np.sum(reward)/total
-        # return output_dict
+        if len(good_idxs) >0:
 
-        return {}
+            factscores = fs.get_score(list(np.array(names)[good_idxs]), good_outputs, gamma=0)
+
+            num_true_all = []
+            num_total_all = []
+            frac_correct_facts = []
+            num_none_decisions = 0
+            for i in range(len(factscores["decisions"])):
+                decison = factscores["decisions"][i]
+                if decison == None:
+                    num_total_all.append(0)
+                    num_true_all.append(0)
+                    print(good_outputs[i])
+                    num_none_decisions += 1
+
+                else:
+                    num_total_all.append(len(decison))
+                    num_true_all.append(np.sum([fact["is_supported"] for fact in decison]))
+                    frac_correct_facts.append(np.sum([fact["is_supported"] for fact in decison])/len(decison))
+            num_total_all = np.array(num_total_all)
+            num_true_all = np.array(num_true_all)
+            frac_correct_facts = np.array(frac_correct_facts)
+
+            if len(num_total_all)>0:
+                output_dict["test/avg_num_facts"] = np.mean(num_total_all)
+                output_dict["test/avg_num_correct_facts"] = np.mean(num_true_all)
+                output_dict["test/avg_num_false_facts"] =   np.mean(num_total_all - num_true_all)
+                output_dict["test/avg_frac_correct_facts"] = np.mean(frac_correct_facts)
+            output_dict["test/frac_wrong"] = (len(bad_idxs)+num_none_decisions) / len(outputs)
+
+        else:
+            output_dict["test/frac_wrong"] = len(bad_idxs) / len(outputs)
+
+        return output_dict
     
 
     names = np.load("biographies/names.npy")

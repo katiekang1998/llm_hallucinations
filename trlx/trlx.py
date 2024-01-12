@@ -157,9 +157,6 @@ def eval(  # noqa: C901
     )
     trainer.add_eval_pipeline(eval_pipeline)
 
-    if eval_fn is None:
-        trainer.evaluate_custom()
-    else:
-        trainer.evaluate_custom(eval_fn)
+    trainer.evaluate_custom(eval_fn)
     
     return trainer

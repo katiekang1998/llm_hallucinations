@@ -446,6 +446,7 @@ class AcceleratePPOTrainer(AccelerateRLTrainer):
                         all_tokens, attention_mask=attention_mask, position_ids=position_ids
                     )
 
+
                     # if iter_count > 200:
                     #     import IPython; IPython.embed()
                     # KATIE: EMBED HERE TO LOOK AT MODEL PREDICTIONS

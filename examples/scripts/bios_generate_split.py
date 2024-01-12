@@ -11,11 +11,17 @@ names = np.load("../biographies/names.npy")
 
 wiki_wiki = wikipediaapi.Wikipedia('KatieKang (katiekang1998@berkeley.edu)', 'en')
 
-train_idxs = np.load("../biographies/train_points.npy")
+# train_idxs = np.load("../biographies/train_points.npy")
 
-with open("../biographies/train_bios.pkl", "rb") as f:
-    old_train_dict = pickle.load(f)
+train_idxs = np.load("../biographies/test_points_medium.npy")
 
+
+# with open("../biographies/train_bios.pkl", "rb") as f:
+#     old_train_dict = pickle.load(f)
+
+old_train_dict = {}
+old_train_dict["name"] = []
+old_train_dict["bio"] = []
 
 def get_bio(name):
     page_py = wiki_wiki.page(name)
@@ -50,8 +56,8 @@ executor = futures.ThreadPoolExecutor()
 
 train_names = old_train_dict["name"]
 train_bios = old_train_dict["bio"]
-for i in tqdm.tqdm(range((len(train_names)//10)+1, (len(train_idxs)//10)+1)):
-
+# for i in tqdm.tqdm(range((len(train_names)//10)+1, (len(train_idxs)//10)+1)):
+for i in tqdm.tqdm(range(0, (len(train_idxs)//10)+1)):
     name_idx_batch = train_idxs[i*10:(i+1)*10]
     names_batch = names[name_idx_batch]
     responses_batch = executor.map(get_bio, names_batch)
@@ -67,8 +73,15 @@ for i in tqdm.tqdm(range((len(train_names)//10)+1, (len(train_idxs)//10)+1)):
         print("SAVING", i)
         train_dict = {"name": train_names, "bio": train_bios}
 
-        with open("../biographies/train_bios.pkl", "wb") as f:
+        with open("../biographies/test_bios_medium.pkl", "wb") as f:
             pickle.dump(train_dict, f)
+
+
+print("SAVING FINAL")
+train_dict = {"name": train_names, "bio": train_bios}
+
+with open("../biographies/test_bios_medium.pkl", "wb") as f:
+    pickle.dump(train_dict, f)
 
 # def is_name_in_db(con, title):
 #     # creating cursor

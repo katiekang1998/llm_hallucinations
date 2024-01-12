@@ -86,27 +86,29 @@ def main(hparams={}):
     config.model.CORRECT_REWARD=CORRECT_REWARD
     config.model.CORRECT_HEDGE_REWARD = CORRECT_HEDGE_REWARD
     config.model.INCORRECT_HEDGE_REWARD = INCORRECT_HEDGE_REWARD
-    config.model.model_path = "ckpts/sft_ctrex_llama7B_2_commit_idk_lr1e-5_2/checkpoint_03000/hf_model"
+    config.model.model_path = "ckpts/sft_ctrex_llama7B_2_commit_idk_lr1e-5_2/checkpoint_03000/hf_model"+"merged"
     config.tokenizer.tokenizer_path = "NousResearch/Llama-2-7b-hf"
 
-    config.train.checkpoint_dir = f"ckpts/ppo_rm_ctrex_llama7B_commit{CORRECT_REWARD}_idk10_no_value_detach"
+    config.train.checkpoint_dir = f"ckpts/ppo_rm_ctrex_llama7B_commit{CORRECT_REWARD}_idk10_kl2_FIXED_lr1e-5"
     # config.train.epochs = 100
     config.train.project_name = "ppo_rm_ctrex_llama7B_2"
-    config.train.run_name = f"commit{CORRECT_REWARD}_idk10_no_value_detach"
+    config.train.run_name = f"commit{CORRECT_REWARD}_idk10_kl2_FIXED_lr1e-5"
+
     config.method.cliprange=0.005
-    config.train.eval_interval= 500
-    config.train.checkpoint_interval = 1000
+    config.train.eval_interval= 1000
+    config.train.checkpoint_interval = 5000
+    config.train.total_steps = 100000
 
-    config.method.chunk_size=128//4
-    config.train.batch_size=32//4
+    config.method.chunk_size=128//2
+    config.train.batch_size=32//2
 
-    config.method.init_kl_coef = 0
+    config.method.init_kl_coef = 2
 
     config.optimizer=OptimizerConfig(
-            name="adamw", kwargs=dict(lr=5e-5, betas=(0.9, 0.95), eps=1.0e-8, weight_decay=1.0e-6)
+            name="adamw", kwargs=dict(lr=1e-5, betas=(0.9, 0.95), eps=1.0e-8, weight_decay=1.0e-6)
         )
         
-    config.scheduler=SchedulerConfig(name="cosine_annealing", kwargs=dict(T_max=2e4, eta_min=5e-5))
+    config.scheduler=SchedulerConfig(name="cosine_annealing", kwargs=dict(T_max=2e4, eta_min=1e-5))
 
 
     config.model.num_layers_unfrozen=-1
@@ -139,12 +141,12 @@ def main(hparams={}):
 
 
     # Just insert your peft config here (the type must be an instance of peft.PeftConfig or a dict).
-    # config.model.peft_config = LoraConfig(
-    #     r=16,
-    #     task_type=TaskType.CAUSAL_LM,
-    #     lora_alpha=16,
-    #     lora_dropout=0,
-    # )
+    config.model.peft_config = LoraConfig(
+        r=16,
+        task_type=TaskType.CAUSAL_LM,
+        lora_alpha=16,
+        lora_dropout=0,
+    )
 
 
     rw_tokenizer = AutoTokenizer.from_pretrained("NousResearch/Llama-2-7b-hf")
