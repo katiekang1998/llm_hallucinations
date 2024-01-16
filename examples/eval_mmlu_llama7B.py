@@ -85,9 +85,42 @@ def prepare_prompt_random(question, correct_answer, incorrect_answers):
 
     return prompt_dict
 
+def prepare_prompt_letter(question, correct_answer, incorrect_answers, letter):
+
+    if letter=="A":
+        answers = [correct_answer, incorrect_answers[0], incorrect_answers[1], incorrect_answers[2]]
+        answer_idx = 0
+    elif letter=="B":
+        answers = [incorrect_answers[0], correct_answer, incorrect_answers[1], incorrect_answers[2]]
+        answer_idx = 1
+    elif letter=="C":
+        answers = [incorrect_answers[0], incorrect_answers[1], correct_answer, incorrect_answers[2]]
+        answer_idx = 2
+    elif letter=="D":
+        answers = [incorrect_answers[0], incorrect_answers[1], incorrect_answers[2], correct_answer]
+        answer_idx = 3
+    else:
+        raise Exception("Letter not recognized")
+    
+    choices = ["A", "B", "C", "D"]
+
+    prompt = question + " "
+    for i, answer in enumerate(answers):
+        prompt += choices[i] + ") " + answer + " "
+
+    prompt += ", Answer: "
+
+    response = choices[answer_idx]
+
+    prompt_dict = {}
+    prompt_dict["prompt"] = prompt
+    prompt_dict["answer"] = response
+
+    return prompt_dict
+
 def main(hparams={}):
-    model_path = "ckpts/sft2_mmlu_llama7B_threshold0pt5_certainABCD/checkpoint_05000/hf_model/"
-    # model_path = "ckpts/sft_mmlu_llama7B/checkpoint_00500/hf_model/"
+    # model_path = "ckpts/sft2_mmlu_llama7B_threshold0pt5_certainABCD/checkpoint_01000/hf_model/"
+    model_path = "ckpts/sft_mmlu_llama7B/checkpoint_02000/hf_model/"
 
 
     config = TRLConfig.update(default_sft_config().to_dict(), hparams) 
@@ -104,24 +137,24 @@ def main(hparams={}):
     config.method.gen_kwargs=dict(max_new_tokens=40, do_sample=False) 
 
     def metric_fn(samples: List[str], **kwargs):
-        np.save(os.path.join(config.model.model_path, "eval_answers.npy"), np.array(kwargs["answer"]))
+        # np.save(os.path.join(config.model.model_path, "eval_answers.npy"), np.array(kwargs["answer"]))
         
         output_dict = {}
         
-        answer_types = list(map(answer_type_individial, np.array(kwargs["outputs"]), np.array(kwargs["answer"])))
-        correct_pred = ([1 if x == 0 else 0 for x in answer_types ])
-        incorrect_pred = ([1 if x == 1 else 0 for x in answer_types ])
-        bad_pred = ([1 if x == 4 else 0 for x in answer_types ])
+        # answer_types = list(map(answer_type_individial, np.array(kwargs["outputs"]), np.array(kwargs["answer"])))
+        # correct_pred = ([1 if x == 0 else 0 for x in answer_types ])
+        # incorrect_pred = ([1 if x == 1 else 0 for x in answer_types ])
+        # bad_pred = ([1 if x == 4 else 0 for x in answer_types ])
     
-        total = len(answer_types)
+        # total = len(answer_types)
         
-        output_dict["eval/correct_pred"] = np.sum(correct_pred)/total
-        output_dict["eval/incorrect_pred"] = np.sum(incorrect_pred)/total
-        output_dict["eval/bad_pred"] = np.sum(bad_pred)/total
+        # output_dict["eval/correct_pred"] = np.sum(correct_pred)/total
+        # output_dict["eval/incorrect_pred"] = np.sum(incorrect_pred)/total
+        # output_dict["eval/bad_pred"] = np.sum(bad_pred)/total
 
-        print(output_dict)
+        # print(output_dict)
 
-        np.save(os.path.join(config.model.model_path, "train_correct_preds.npy"), correct_pred)
+        # np.save(os.path.join(config.model.model_path, "train_correct_preds.npy"), correct_pred)
         return output_dict
     
 
@@ -168,7 +201,7 @@ def main(hparams={}):
         np.save(os.path.join(config.model.model_path, "eval_answers.npy"), answers)
 
         A_to_D_logits_all = np.concatenate(A_to_D_logits_all, axis=0)
-        np.save(os.path.join(config.model.model_path, "eval_A_to_D_probs.npy"), A_to_D_logits_all)
+        np.save(os.path.join(config.model.model_path, "eval_A_to_D_probs_truthD.npy"), A_to_D_logits_all)
 
     
 
@@ -215,7 +248,7 @@ def main(hparams={}):
 
     
     # prompts_test = list(map(prepare_prompt, test_questions,test_choices,test_answers, [2 for _ in range(len(test_questions))]))
-    prompts_test = list(map(prepare_prompt_random, test_questions, test_correct_choice, test_incorrect_choices))
+    prompts_test = list(map(prepare_prompt_letter, test_questions, test_correct_choice, test_incorrect_choices, ["D" for _ in range(len(test_questions))]))
 
     # prompts_test = list(map(prepare_prompt, train_questions,train_choices,train_answers, [2 for _ in range(len(train_questions))]))
 

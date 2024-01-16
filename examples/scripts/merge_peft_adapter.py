@@ -7,7 +7,9 @@ from transformers import AutoModelForCausalLM, AutoModelForSequenceClassificatio
 
 
 
-pretrained_model_name_or_path = "../ckpts/sft_bios_new_llama7B_2/checkpoint_02000/hf_model"
+# pretrained_model_name_or_path = "../ckpts/sft_bios_new_llama7B_2/checkpoint_02000/hf_model"
+
+pretrained_model_name_or_path = "../ckpts/ppo_rm_bios_llama7B_true2_false-3_3/checkpoint_010000/hf_model"
 output_name  = pretrained_model_name_or_path+"merged"
 trained_adapter_config = PeftConfig.from_pretrained(pretrained_model_name_or_path)
 

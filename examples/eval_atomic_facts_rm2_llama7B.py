@@ -61,7 +61,7 @@ def prepare_sample(line, correct):
 
 
 def main(hparams={}):
-    model_path = "ckpts/rm2_atmoic_facts_llama7B/checkpoint_10000/hf_model/"
+    model_path = "ckpts/rm2_atmoic_facts_gpt3pt5_llama7B/checkpoint_10000/hf_model/"
 
     config = TRLConfig.update(default_sft_config().to_dict(), hparams) 
     config.model.model_path = model_path
@@ -88,52 +88,52 @@ def main(hparams={}):
     # )
 
     def metric_fn(samples: List[str], **kwargs):
-        np.save("ckpts/rm2_atmoic_facts_llama7B/checkpoint_10000/hf_model/sft_atomic_facts_llama7B_ckpt_01000_False_factuality_preds.npy", np.array(kwargs["outputs"]))
+        # np.save("ckpts/rm2_atmoic_facts_llama7B/checkpoint_10000/hf_model/sft_atomic_facts_llama7B_ckpt_01000_False_factuality_preds.npy", np.array(kwargs["outputs"]))
 
         split_names = ["test"]
         output_dict = {}
 
-        # for split_idx in range(1):
-        #     idxs = np.where(np.array(kwargs["split"])==split_idx)[0]
+        for split_idx in range(1):
+            idxs = np.where(np.array(kwargs["split"])==split_idx)[0]
             
-        #     answer_types = list(map(answer_type_individial, np.array(kwargs["outputs"])[idxs], np.array(kwargs["answer"])[idxs]))
+            answer_types = list(map(answer_type_individial, np.array(kwargs["outputs"])[idxs], np.array(kwargs["answer"])[idxs]))
             
             
-        #     true_positive = ([1 if x == 0 else 0 for x in answer_types ])
-        #     false_positive = ([1 if x == 1 else 0 for x in answer_types ])
-        #     true_negative = ([1 if x == 2 else 0 for x in answer_types ])
-        #     false_negative = ([1 if x == 3 else 0  for x in answer_types])
-        #     bad_pred = ([1 if x == 4 else 0 for x in answer_types ])
-        #     total = len(answer_types)
+            true_positive = ([1 if x == 0 else 0 for x in answer_types ])
+            false_positive = ([1 if x == 1 else 0 for x in answer_types ])
+            true_negative = ([1 if x == 2 else 0 for x in answer_types ])
+            false_negative = ([1 if x == 3 else 0  for x in answer_types])
+            bad_pred = ([1 if x == 4 else 0 for x in answer_types ])
+            total = len(answer_types)
 
 
-        #     output_dict[split_names[split_idx]+"/true_positive"] = np.sum(true_positive)/total
-        #     output_dict[split_names[split_idx]+"/false_positive"] = np.sum(false_positive)/total
-        #     output_dict[split_names[split_idx]+"/true_negative"] = np.sum(true_negative)/total
-        #     output_dict[split_names[split_idx]+"/false_negative"] = np.sum(false_negative)/total
-        #     output_dict[split_names[split_idx]+"/bad_pred"] = np.sum(bad_pred)/total
-        #     output_dict[split_names[split_idx]+"/accuracy"] = (np.sum(true_positive)+np.sum(true_negative))/total
+            output_dict[split_names[split_idx]+"/true_positive"] = np.sum(true_positive)/total
+            output_dict[split_names[split_idx]+"/false_positive"] = np.sum(false_positive)/total
+            output_dict[split_names[split_idx]+"/true_negative"] = np.sum(true_negative)/total
+            output_dict[split_names[split_idx]+"/false_negative"] = np.sum(false_negative)/total
+            output_dict[split_names[split_idx]+"/bad_pred"] = np.sum(bad_pred)/total
+            output_dict[split_names[split_idx]+"/accuracy"] = (np.sum(true_positive)+np.sum(true_negative))/total
 
         return output_dict
 
-    # with open("ckpts/sft_bios_new_llama7B/checkpoint_20000/hf_model/factscores_test_small.json", "r") as f:
-    #     factscores = json.load(f)
+    with open("ckpts/sft_bios_new_llama7B/checkpoint_20000/hf_model/factscores_test_small.json", "r") as f:
+        factscores = json.load(f)
 
-    # decisions = factscores["decisions"]
+    decisions = factscores["decisions"]
 
-    # lines_all = []
-    # correct_all = []
-    # for decision in decisions:
-    #     if decision is not None:
-    #         for atomic_fact in decision:
-    #             lines_all.append(atomic_fact["atom"])
-    #             correct_all.append(atomic_fact["is_supported"])
-    # lines_all = np.array(lines_all)
-    # correct_all = np.array(correct_all)
+    lines_all = []
+    correct_all = []
+    for decision in decisions:
+        if decision is not None:
+            for atomic_fact in decision:
+                lines_all.append(atomic_fact["atom"])
+                correct_all.append(atomic_fact["is_supported"])
+    lines_all = np.array(lines_all)
+    correct_all = np.array(correct_all)
     # prompts_test = list(map(prepare_prompt, lines_all, correct_all, [0 for _ in range(len(correct_all))]))
 
 
-    # with open("biographies/factscores_train100_false.json", "r") as f:
+    # with open("biographies/factscores_train100_true.json", "r") as f:
     #     factscores = json.load(f)
 
     # decisions = factscores["decisions"]
@@ -145,14 +145,15 @@ def main(hparams={}):
     #         for atomic_fact in decision:
     #             lines_all.append(atomic_fact["atom"])
     #             # correct_all.append(atomic_fact["is_supported"])
-    #             correct_all.append(False)
+    #             correct_all.append(True)
     # lines_all = np.array(lines_all)
     # correct_all = np.array(correct_all)
 
 
 
-    lines_all = np.load("ckpts/sft_atomic_facts_llama7B/checkpoint_01000/hf_model/test_medium_False_facts.npy", allow_pickle=True).item()["facts"]
-    correct_all = np.array([False for _ in range(len(lines_all))])
+    # lines_all = np.load("ckpts/sft_atomic_facts_llama7B/checkpoint_01000/hf_model/test_medium_True_facts.npy", allow_pickle=True).item()["facts"]
+    # correct_all = np.array([False for _ in range(len(lines_all))])
+
 
     prompts_test = list(map(prepare_prompt, lines_all, correct_all, [0 for _ in range(len(correct_all))]))
 

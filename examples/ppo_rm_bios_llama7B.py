@@ -56,20 +56,20 @@ def main(hparams={}):
     config.model.model_path = "ckpts/sft_bios_new_llama7B_2/checkpoint_02000/hf_model"+"merged"
     config.tokenizer.tokenizer_path = "NousResearch/Llama-2-7b-hf"
 
-    config.train.checkpoint_dir = f"ckpts/ppo_rm_bios_llama7B_true{TRUE_FACT_REWARD}_false{FALSE_FACT_REWARD}"
+    config.train.checkpoint_dir = f"ckpts/ppo_rm_bios_llama7B_true{TRUE_FACT_REWARD}_false{FALSE_FACT_REWARD}_kl0pt5_GPT3pt5"
     # config.train.epochs = 100
     config.train.project_name = "ppo_bios_llama7B"
-    config.train.run_name = f"rm_true{TRUE_FACT_REWARD}_false{FALSE_FACT_REWARD}"
+    config.train.run_name = f"rm_true{TRUE_FACT_REWARD}_false{FALSE_FACT_REWARD}_kl0pt5_GPT3pt5"
 
     config.method.cliprange=0.005
     config.train.eval_interval= 1000
-    config.train.checkpoint_interval = 5000
+    config.train.checkpoint_interval = 1000
     config.train.total_steps = 100000
 
     config.method.chunk_size=128//2
     config.train.batch_size=32//2
 
-    config.method.init_kl_coef = 2
+    config.method.init_kl_coef = 0.5
 
     config.optimizer=OptimizerConfig(
             name="adamw", kwargs=dict(lr=1e-5, betas=(0.9, 0.95), eps=1.0e-8, weight_decay=1.0e-6)
@@ -88,11 +88,9 @@ def main(hparams={}):
         train_data = pickle.load(fp)
 
     prompts_train = list(map(prepare_prompt, train_data["name"]))
+    np.random.shuffle(prompts_train)
 
     prompts_eval = list(map(prepare_prompt, names[test_idxs]))
-
-    fs = FactScorer(openai_key="/data/katie_kang/openai_key_file.txt", data_dir="/data/katie_kang/trlx/examples/.cache/factscore", cache_dir="/data/katie_kang/trlx/examples/.cache/factscore")
-
 
     # Just insert your peft config here (the type must be an instance of peft.PeftConfig or a dict).
     config.model.peft_config = LoraConfig(
@@ -114,7 +112,7 @@ def main(hparams={}):
     atmoic_facts_model.eval()
     atmoic_facts_model.to("cuda:1")
 
-    truthfulness_model = AutoModelForCausalLM.from_pretrained("ckpts/rm2_atmoic_facts_llama7B/checkpoint_10000/hf_model/")
+    truthfulness_model = AutoModelForCausalLM.from_pretrained("ckpts/rm2_atmoic_facts_gpt3pt5_llama7B/checkpoint_10000/hf_model/")
     truthfulness_model.eval()
     truthfulness_model.to("cuda:2")
 
@@ -219,35 +217,38 @@ def main(hparams={}):
         output_dict = {}
         
         if len(good_idxs) >0:
+            try:
+                fs = FactScorer(openai_key="/data/katie_kang/openai_key_file_rail.txt", data_dir="/data/katie_kang/trlx/examples/.cache/factscore", cache_dir="/data/katie_kang/trlx/examples/.cache/factscore")
+                factscores =fs.get_score(list(np.array(names)[good_idxs]), good_outputs, gamma=0)
 
-            factscores =fs.get_score(list(np.array(names)[good_idxs]), good_outputs, gamma=0)
+                num_true_all = []
+                num_total_all = []
+                frac_correct_facts = []
+                num_none_decisions = 0
+                for i in range(len(factscores["decisions"])):
+                    decison = factscores["decisions"][i]
+                    if decison == None:
+                        num_total_all.append(0)
+                        num_true_all.append(0)
+                        print(good_outputs[i])
+                        num_none_decisions += 1
 
-            num_true_all = []
-            num_total_all = []
-            frac_correct_facts = []
-            num_none_decisions = 0
-            for i in range(len(factscores["decisions"])):
-                decison = factscores["decisions"][i]
-                if decison == None:
-                    num_total_all.append(0)
-                    num_true_all.append(0)
-                    print(good_outputs[i])
-                    num_none_decisions += 1
+                    else:
+                        num_total_all.append(len(decison))
+                        num_true_all.append(np.sum([fact["is_supported"] for fact in decison]))
+                        frac_correct_facts.append(np.sum([fact["is_supported"] for fact in decison])/len(decison))
+                num_total_all = np.array(num_total_all)
+                num_true_all = np.array(num_true_all)
+                frac_correct_facts = np.array(frac_correct_facts)
 
-                else:
-                    num_total_all.append(len(decison))
-                    num_true_all.append(np.sum([fact["is_supported"] for fact in decison]))
-                    frac_correct_facts.append(np.sum([fact["is_supported"] for fact in decison])/len(decison))
-            num_total_all = np.array(num_total_all)
-            num_true_all = np.array(num_true_all)
-            frac_correct_facts = np.array(frac_correct_facts)
-
-            if len(num_total_all)>0:
-                output_dict["test/avg_num_facts"] = np.mean(num_total_all)
-                output_dict["test/avg_num_correct_facts"] = np.mean(num_true_all)
-                output_dict["test/avg_num_false_facts"] =   np.mean(num_total_all - num_true_all)
-                output_dict["test/avg_frac_correct_facts"] = np.mean(frac_correct_facts)
-            output_dict["test/frac_wrong"] = (len(bad_idxs)+num_none_decisions) / len(outputs)
+                if len(num_total_all)>0:
+                    output_dict["test/avg_num_facts"] = np.mean(num_total_all)
+                    output_dict["test/avg_num_correct_facts"] = np.mean(num_true_all)
+                    output_dict["test/avg_num_false_facts"] =   np.mean(num_total_all - num_true_all)
+                    output_dict["test/avg_frac_correct_facts"] = np.mean(frac_correct_facts)
+                output_dict["test/frac_wrong"] = (len(bad_idxs)+num_none_decisions) / len(outputs)
+            except:
+                print("ISSUE WITH FACTSCORE")
 
 
         else:

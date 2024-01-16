@@ -25,31 +25,29 @@ import pickle
 import random
 import torch
 
-def set_seed(seed):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(seed)
-
-seed = 2
 
 
+# def prepare_sample(name, bio):
+#     question = "Write a one sentence biography for "+name+":"
+#     return (question, bio)
 
-def prepare_sample(name, bio):
-    question = "Write a one sentence biography for "+name+":"
-    return (question, bio)
+# def prepare_prompt(name):
+#     prompt = {}
+#     prompt["prompt"] = "Write a one sentence biography for "+name+":"
+#     return prompt
+
 
 def prepare_prompt(name):
     prompt = {}
-    prompt["prompt"] = "Write a one sentence biography for "+name+":"
+    prompt["prompt"] = "Write a biography for "+name+"."
+    prompt["name"] = name
     return prompt
+
 
 def main(hparams={}):
 
-    set_seed(seed)
-
-    model_path = "ckpts/sft_bios_new_llama7B/checkpoint_20000/hf_model"
+    # model_path = "ckpts/sft_bios_new_llama7B_2_2/checkpoint_20000/hf_model"
+    model_path = "ckpts/ppo_rm_bios_llama7B_true2_false-3_kl0pt5/checkpoint_017000/hf_model"
 
     if "sft" in model_path:
         config = TRLConfig.update(default_sft_config().to_dict(), hparams) 
@@ -74,9 +72,7 @@ def main(hparams={}):
             name="cosine_annealing", kwargs=dict(T_max=1e4, eta_min=1.0e-10)  # train.total_steps
         )
     
-    # config.method.gen_kwargs=dict(max_new_tokens=40, do_sample=False)
-
-    config.method.gen_kwargs=dict(max_new_tokens=40, do_sample=True)
+    config.method.gen_kwargs=dict(max_new_tokens=40, do_sample=False)
 
     # config.model.peft_config = LoraConfig(
     #     r=16,
@@ -86,27 +82,13 @@ def main(hparams={}):
     # )
 
     def metric_fn(samples: List[str], **kwargs):
-        np.save(os.path.join(model_path, "sample_output_strings_test_small2.npy"), samples)
+        np.save(os.path.join(model_path, "sample_output_strings_test_medium.npy"), samples)
 
-        return {}    
-
-
-    def eval_fn(eval_dataloader, model, tokenizer, device, config):
-        model.eval()
-        outputs = []
-        for batch in eval_dataloader:
-            with torch.no_grad():
-                batch = {k: v.to(device) for k, v in batch.items()}
-                output = model.generate(**batch, **config.method.gen_kwargs, do_sample=True)
-                output = tokenizer.batch_decode(output, skip_special_tokens=True)
-                outputs.extend(output)
-
-        np.save(os.path.join(model_path, "sample_output_strings_test_small2.npy"), outputs)
-        import IPython; IPython.embed(); exit(1)
+        return {}
 
     names = np.load("biographies/names.npy")
 
-    test_idxs = np.load("biographies/test_points_small.npy")
+    test_idxs = np.load("biographies/test_points_medium.npy")
 
     with open('biographies/train_bios.pkl', 'rb') as fp:
         train_data = pickle.load(fp)
@@ -121,7 +103,7 @@ def main(hparams={}):
         eval_prompts=prompts_test,
         # eval_prompts=prompts_train,
         metric_fn=metric_fn,
-        eval_fn = eval_fn,
+        # eval_fn = eval_fn,
         config=config,
         stop_sequences = ["</s>"]
     )
