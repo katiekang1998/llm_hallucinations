@@ -120,7 +120,7 @@ def prepare_prompt_letter(question, correct_answer, incorrect_answers, letter):
 
 def main(hparams={}):
     # model_path = "ckpts/sft2_mmlu_llama7B_threshold0pt5_certainABCD/checkpoint_01000/hf_model/"
-    model_path = "ckpts/sft_mmlu_llama7B/checkpoint_02000/hf_model/"
+    model_path = "ckpts/sft_mmlu_llama7B/checkpoint_01000/hf_model/"
 
 
     config = TRLConfig.update(default_sft_config().to_dict(), hparams) 

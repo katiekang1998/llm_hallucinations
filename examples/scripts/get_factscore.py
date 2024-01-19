@@ -106,7 +106,7 @@ import os
 
 
 
-samples = np.load(os.path.join("../ckpts/ppo_rm_bios_llama7B_true2_false-3_kl0pt5/checkpoint_017000/hf_model", "sample_output_strings_test_medium.npy"))
+samples = np.load(os.path.join("../ckpts/ppo_rm_bios_llama7B_true2_false-3_kl0pt5_GPT3pt5/checkpoint_006000/hf_model", "sample_output_strings_test_medium.npy"))
 
 generations = []
 
@@ -126,6 +126,6 @@ topics = names[test_idxs]
 fs = FactScorer(openai_key="/data/katie_kang/openai_key_file.txt", data_dir="/data/katie_kang/trlx/examples/.cache/factscore", cache_dir="/data/katie_kang/trlx/examples/.cache/factscore")
 out = fs.get_score(list(topics), list(generations), gamma=0)
 
-with open("../ckpts/ppo_rm_bios_llama7B_true2_false-3_kl0pt5/checkpoint_017000/hf_model/factscores_test_medium.json", "w") as f:
+with open("../ckpts/ppo_rm_bios_llama7B_true2_false-3_kl0pt5_GPT3pt5/checkpoint_006000/hf_model/factscores_test_medium.json", "w") as f:
     json.dump(out, f)
 

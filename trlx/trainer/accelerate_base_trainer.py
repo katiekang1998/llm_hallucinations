@@ -373,7 +373,7 @@ class AccelerateRLTrainer(BaseRLTrainer):
         self.model.eval()
         
         if eval_fn is not None:
-            eval_fn(self.eval_dataloader, self.model, self.tokenizer, self.accelerator.device, self.config)
+            eval_fn(self.eval_dataloader, self.model, self.tokenizer, self.accelerator.device, self.config, self.accelerator)
 
 
         # seq_end_hidden_state = []
@@ -516,8 +516,8 @@ class AccelerateRLTrainer(BaseRLTrainer):
         # np.save(os.path.join(self.config.model.model_path, "sampled_answer_kl_to_i.npy"), answer_kl_to_i)
         # np.save(os.path.join(self.config.model.model_path, "sampled_answer_kl_to_ocs.npy"), answer_kl_to_ocs)
 
-
-        self.evaluate()
+        if self.metric_fn is not None:
+            self.evaluate()
 
 
     def evaluate(self):  # noqa: C901

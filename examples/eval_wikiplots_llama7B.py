@@ -37,17 +37,19 @@ import torch
 #     return prompt
 
 
-def prepare_prompt(name):
+def prepare_prompt(title):
+    title2 = title.split("(")[0].strip()
+    question = "What is the premise of \"" + title2 + "\"?"
     prompt = {}
-    prompt["prompt"] = "Write a biography for "+name+"."
-    prompt["name"] = name
+    prompt["prompt"] = question
+    prompt["document_title"] = title
     return prompt
 
 
 def main(hparams={}):
 
     # model_path = "ckpts/sft_bios_new_llama7B_2_2/checkpoint_20000/hf_model"
-    model_path = "ckpts/ppo_rm_bios_llama7B_true2_false-3_kl0pt5_GPT3pt5/checkpoint_006000/hf_model"
+    model_path = "ckpts/sft_wikiplots_common_llama7B/checkpoint_15000/hf_model"
 
     if "sft" in model_path:
         config = TRLConfig.update(default_sft_config().to_dict(), hparams) 
@@ -56,8 +58,7 @@ def main(hparams={}):
         config.method.chunk_size = 128
     config.model.model_path = model_path
 
-    config.train.batch_size = 128
-
+    config.train.batch_size = 32
 
     # config.train.epochs = 100
     config.train.project_name = "trlx_eval"
@@ -82,21 +83,31 @@ def main(hparams={}):
     # )
 
     def metric_fn(samples: List[str], **kwargs):
-        np.save(os.path.join(model_path, "sample_output_strings_test_medium.npy"), samples)
+        np.save(os.path.join(model_path, "sample_output_strings_eval_medium.npy"), samples)
 
         return {}
 
-    names = np.load("biographies/names.npy")
+    titles = []
+    with open("/data/katie_kang/trlx/examples/movies/titles",) as file:
+        for line in file:
+            titles.append(line.strip())
+    
+    plots = []
+    line_idx = 0
+    with open("/data/katie_kang/trlx/examples/movies/plots",) as file:
+        for line in file:
+            line_idx+=1
+            if line_idx == 1:
+                plots.append(line.rstrip())
+            if "<EOS>" in line:
+                line_idx = 0
+    
+    titles = np.array(titles)
+    plots = np.array(plots)
 
-    test_idxs = np.load("biographies/test_points_medium.npy")
-
-    with open('biographies/train_bios.pkl', 'rb') as fp:
-        train_data = pickle.load(fp)
-
-
-    # train_prompts = list(map(prepare_prompt, train_data["name"]))
-
-    prompts_test = list(map(prepare_prompt, names[test_idxs]))
+    train_idxs = np.load("/data/katie_kang/trlx/examples/movies/common_train_idxs.npy")
+    test_idxs = np.load("/data/katie_kang/trlx/examples/movies/common_test_medium_idxs.npy")
+    prompts_test = list(map(prepare_prompt, titles[test_idxs]))
 
 
     trainer = trlx.eval(

@@ -75,7 +75,7 @@ def main(hparams={}):
         save_dict["facts"] = facts_all
         save_dict["bio_idxs"] = facts_idxs
 
-        np.save(os.path.join(config.model.model_path, "test_medium_False_small_facts.npy"), save_dict)        
+        np.save(os.path.join(config.model.model_path, "train_False_facts_10000.npy"), save_dict)        
         return {}
 
     # with open("ckpts/sft_bios_new_llama7B/checkpoint_20000/hf_model/factscores_test_medium.json", "r") as f:
@@ -102,9 +102,9 @@ def main(hparams={}):
     #         line = response.split(': ')[1]
     #         lines_all.append(line)
 
-    with open("biographies/test_bios_medium.pkl", "rb") as f:
+    with open("biographies/train_bios.pkl", "rb") as f:
         test_bios_medium = pickle.load(f)
-    lines_all = test_bios_medium["bio"]
+    lines_all = test_bios_medium["bio"][:10000]
     lines_all = list(map(lambda x: x.lstrip(), lines_all))
     num_true_all = [-1 for _ in range(len(lines_all))]
     num_total_all = [-1 for _ in range(len(lines_all))]
@@ -138,7 +138,6 @@ def main(hparams={}):
     for i in range(len(names)):
         lines_all.append(names[rand_idxs[i]]+bios[i])
 
-    lines_all = np.array(lines_all)[:100]
 
     test_prompts = list(map(prepare_prompt, lines_all))
 
