@@ -67,6 +67,7 @@ def main(hparams={}):
     config.train.checkpoint_interval = 500
     # config.train.checkpoint_dir = "ckpts/rm2_atmoic_facts_llama7B"
     config.train.checkpoint_dir = "ckpts/rm_atmoic_facts_llama7B_50_50"
+    config.train.batch_size = 32//3
 
     # config.train.epochs = 100
     # config.train.project_name = "trlx_rm2_atmoic_facts_llama7B"
@@ -190,9 +191,6 @@ def main(hparams={}):
 
     np.random.shuffle(prompts_test)
     prompts_test = prompts_test[:100]
-
-
-    import IPython; IPython.embed();
 
 
 

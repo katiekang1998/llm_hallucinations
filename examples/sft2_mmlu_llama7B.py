@@ -53,13 +53,15 @@ def answer_type_individial(output , answer) -> List[float]:
 
 def prepare_sample_ABCD(question, correct_answer, incorrect_answers):
 
-    if np.random.random() < 0.25:
+    rand_num = np.random.random()
+
+    if rand_num < 0.25:
         answers = [correct_answer, incorrect_answers[0], incorrect_answers[1], incorrect_answers[2]]
         answer_idx = 0
-    elif np.random.random() < 0.5:
+    elif rand_num < 0.5:
         answers = [incorrect_answers[0], correct_answer, incorrect_answers[1], incorrect_answers[2]]
         answer_idx = 1
-    elif np.random.random() < 0.75:
+    elif rand_num < 0.75:
         answers = [incorrect_answers[0], incorrect_answers[1], correct_answer, incorrect_answers[2]]
         answer_idx = 2
     else:
@@ -142,11 +144,11 @@ def main(hparams={}):
     config.train.total_steps = 30000
     config.train.eval_interval = 500
     config.train.checkpoint_interval = 500
-    config.train.checkpoint_dir = "ckpts/sft2_mmlu_llama7B_threshold0pt5_certainABCD"
+    config.train.checkpoint_dir = "ckpts/sft2_mmlu_llama7B_threshold0pt5_certainABCD_2"
     # config.train.epochs = 100
     config.train.batch_size = 2
     config.train.project_name = "sft_mmlu_llama7B"
-    config.train.run_name = "sft2_threshold0pt5_certainABCD"
+    config.train.run_name = "sft2_threshold0pt5_certainABCD_2"
 
     config.model.model_path = "NousResearch/Llama-2-7b-hf"
     config.tokenizer.tokenizer_path = "NousResearch/Llama-2-7b-hf"

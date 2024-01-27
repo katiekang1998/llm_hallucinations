@@ -167,7 +167,7 @@ def main(hparams={}):
         np.save(os.path.join(config.model.model_path, "test_answer_log_probs_mean_all.npy"), answer_log_probs_mean_all)
         
 
-    dataset_orig = load_dataset("trivia_qa", "rc.nocontext")
+    dataset_orig = load_dataset("trivia_qa", "unfiltered.nocontext")
 
     dataset = dataset_orig["train"]
     test_dataset = dataset_orig["validation"]

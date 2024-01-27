@@ -56,10 +56,10 @@ def main(hparams={}):
     config.model.model_path = "ckpts/sft_bios_new_llama7B_2/checkpoint_02000/hf_model"+"merged"
     config.tokenizer.tokenizer_path = "NousResearch/Llama-2-7b-hf"
 
-    config.train.checkpoint_dir = f"ckpts/ppo_rm_bios_llama7B_true{TRUE_FACT_REWARD}_false{FALSE_FACT_REWARD}_kl0pt5_GPT3pt5"
+    config.train.checkpoint_dir = f"ckpts/ppo_rm_bios_llama7B_true{TRUE_FACT_REWARD}_false{FALSE_FACT_REWARD}_kl0pt5_longGen"
     # config.train.epochs = 100
     config.train.project_name = "ppo_bios_llama7B"
-    config.train.run_name = f"rm_true{TRUE_FACT_REWARD}_false{FALSE_FACT_REWARD}_kl0pt5_GPT3pt5"
+    config.train.run_name = f"rm_true{TRUE_FACT_REWARD}_false{FALSE_FACT_REWARD}_kl0pt5_longGen"
 
     config.method.cliprange=0.005
     config.train.eval_interval= 1000
@@ -74,6 +74,13 @@ def main(hparams={}):
     config.optimizer=OptimizerConfig(
             name="adamw", kwargs=dict(lr=1e-5, betas=(0.9, 0.95), eps=1.0e-8, weight_decay=1.0e-6)
         )
+
+    config.method.gen_kwargs=dict(
+                max_new_tokens=120,
+                top_k=0,
+                top_p=1.0,
+                do_sample=True,
+            )
         
     config.scheduler=SchedulerConfig(name="cosine_annealing", kwargs=dict(T_max=2e4, eta_min=1e-5))
 
@@ -112,7 +119,7 @@ def main(hparams={}):
     atmoic_facts_model.eval()
     atmoic_facts_model.to("cuda:1")
 
-    truthfulness_model = AutoModelForCausalLM.from_pretrained("ckpts/rm2_atmoic_facts_gpt3pt5_llama7B/checkpoint_10000/hf_model/")
+    truthfulness_model = AutoModelForCausalLM.from_pretrained("ckpts/rm2_atmoic_facts_llama7B/checkpoint_10000/hf_model/")
     truthfulness_model.eval()
     truthfulness_model.to("cuda:2")
 

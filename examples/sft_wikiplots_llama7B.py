@@ -139,7 +139,7 @@ def main(hparams={}):
     with open("/data/katie_kang/trlx/examples/movies/titles",) as file:
         for line in file:
             titles.append(line.strip())
-    
+
     plots = []
     line_idx = 0
     with open("/data/katie_kang/trlx/examples/movies/plots",) as file:
@@ -149,7 +149,7 @@ def main(hparams={}):
                 plots.append(line.rstrip())
             if "<EOS>" in line:
                 line_idx = 0
-    
+        
     titles = np.array(titles)
     plots = np.array(plots)
 

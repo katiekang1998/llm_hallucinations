@@ -49,16 +49,17 @@ def prepare_prompt(title):
 def main(hparams={}):
 
     # model_path = "ckpts/sft_bios_new_llama7B_2_2/checkpoint_20000/hf_model"
-    model_path = "ckpts/sft_wikiplots_common_llama7B/checkpoint_15000/hf_model"
+    # model_path = "ckpts/sft_wikiplots_common_llama7B/checkpoint_15000/hf_model"
+    model_path = "ckpts/ppo_rm_wikiplots_llama7B_true2_false-3_kl0pt5/checkpoint_030000/hf_model"
 
     if "sft" in model_path:
         config = TRLConfig.update(default_sft_config().to_dict(), hparams) 
     elif "ppo" in model_path:
         config = TRLConfig.update(default_ppo_config().to_dict(), hparams) 
-        config.method.chunk_size = 128
+        config.method.chunk_size = 32//3
     config.model.model_path = model_path
 
-    config.train.batch_size = 32
+    config.train.batch_size = 32//3
 
     # config.train.epochs = 100
     config.train.project_name = "trlx_eval"
