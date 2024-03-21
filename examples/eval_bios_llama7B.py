@@ -44,10 +44,16 @@ def prepare_prompt(name):
     return prompt
 
 
+def prepare_weird(name):
+    prompt = {}
+    prompt["prompt"] = "Tell me about the life of "+name+"."
+    prompt["name"] = name
+    return prompt
+
 def main(hparams={}):
 
-    # model_path = "ckpts/sft_bios_new_llama7B_2_2/checkpoint_20000/hf_model"
-    model_path = "ckpts/ppo_rm_bios_llama7B_true2_false-3_kl0pt5_GPT3pt5/checkpoint_006000/hf_model"
+    model_path = "ckpts/sft_bios_new_llama7B_2_2/checkpoint_20000/hf_model"
+    # model_path = "ckpts/ppo_rm_bios_llama7B_true2_false-3_kl0pt5_GPT3pt5/checkpoint_006000/hf_model"
 
     if "sft" in model_path:
         config = TRLConfig.update(default_sft_config().to_dict(), hparams) 
@@ -82,7 +88,10 @@ def main(hparams={}):
     # )
 
     def metric_fn(samples: List[str], **kwargs):
-        np.save(os.path.join(model_path, "sample_output_strings_test_medium.npy"), samples)
+        # np.save(os.path.join(model_path, "sample_output_strings_test_medium.npy"), samples)
+
+        print(samples)
+        import IPython; IPython.embed()
 
         return {}
 
@@ -96,8 +105,8 @@ def main(hparams={}):
 
     # train_prompts = list(map(prepare_prompt, train_data["name"]))
 
-    prompts_test = list(map(prepare_prompt, names[test_idxs]))
-
+    # prompts_test = list(map(prepare_prompt, names[test_idxs]))
+    prompts_test = list(map(prepare_prompt, ["Yinghui Yu", "Bill Gates", "Barack Obama", "Barack Obama", "Barack Obama"]))
 
     trainer = trlx.eval(
         eval_prompts=prompts_test,

@@ -9,26 +9,26 @@ import pickle
 
 pretrain_entities = np.load("/data/katie_kang/pretraining_entities/the_pile_entity_map.npz")
 # names = np.load("../biographies/names.npy")
-# test_idxs = np.load("../biographies/test_points_medium.npy")
+# test_idxs = np.load("../biographies/train_points_medium.npy")
 # names = names[test_idxs]
 
 
 
-# with open("../biographies/test_bios_medium.pkl", "rb") as f:
-#     test_bios_medium = pickle.load(f)
-# names = test_bios_medium["name"]
+with open("../biographies/train_bios.pkl", "rb") as f:
+    train_bios = pickle.load(f)
+names = train_bios["name"][:10000]
 
 
 
-titles = []
-with open("/data/katie_kang/trlx/examples/movies/titles",) as file:
-    for line in file:
-        titles.append(line.strip())
+# titles = []
+# with open("/data/katie_kang/trlx/examples/movies/titles",) as file:
+#     for line in file:
+#         titles.append(line.strip())
 
-train_idxs = np.load("/data/katie_kang/trlx/examples/movies/common_train_idxs.npy")
-test_idxs = np.load("/data/katie_kang/trlx/examples/movies/common_test_medium_idxs.npy")
+# train_idxs = np.load("/data/katie_kang/trlx/examples/movies/common_train_idxs.npy")
+# test_idxs = np.load("/data/katie_kang/trlx/examples/movies/common_test_medium_idxs.npy")
 
-names = np.array(titles)[test_idxs]
+# names = np.array(titles)[train_idxs][:10000]
 
 
 def wikipedia_to_dbpedia(wikipedia_titles):
@@ -53,7 +53,7 @@ for dbpedia_id in tqdm.tqdm(dbpedia_ids):
     else:
         num_pretrain_entities.append(len(pretrain_entities[dbpedia_id]))
 
-np.save("../num_pretrain_entities/wikiplots_test_points.npy", num_pretrain_entities)
+np.save("../num_pretrain_entities/bios_train_points_10000.npy", num_pretrain_entities)
 
 
 # num_intersections = []

@@ -36,6 +36,7 @@ from trlx.utils.modeling import (
 import numpy as np
 from trlx.models.modeling_ppo import AutoModelForCausalLMWithHydraValueHead
 from scipy.special import softmax
+from accelerate import DistributedDataParallelKwargs
 
 
 logger = logging.get_logger(__name__)
@@ -57,7 +58,7 @@ class AccelerateRLTrainer(BaseRLTrainer):
             self.mb_size = config.train.batch_size
         self.num_mb = config.train.batch_size // self.mb_size
         self.mb_count = 0
-        self.accelerator = Accelerator(log_with=config.train.tracker, project_dir=config.train.logging_dir)
+        self.accelerator = Accelerator(log_with=config.train.tracker, project_dir=config.train.logging_dir, kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True)])
 
         if self.accelerator.state.deepspeed_plugin is not None:
             # by accelerate's default, arguments in `model.forward` would be casted to half

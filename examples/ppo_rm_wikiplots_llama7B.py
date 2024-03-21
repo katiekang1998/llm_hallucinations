@@ -51,18 +51,19 @@ def main(hparams={}):
     
     # Merge sweep config with default config if given
     config = TRLConfig.update(default_ppo_config().to_dict(), hparams)
-    config.model.TRUE_FACT_REWARD=TRUE_FACT_REWARD
+    config.model.TRUE_FACT_REWARD=TRUE_FACT_REWARD 
     config.model.FALSE_FACT_REWARD = FALSE_FACT_REWARD
 
 
-    config.model.model_path = "ckpts/sft_wikiplots_common_llama7B/checkpoint_05000/hf_model"+"merged"
+    # config.model.model_path = "ckpts/sft_wikiplots_common_llama7B/checkpoint_05000/hf_model"+"merged"
+    config.model.model_path = "ckpts/ppo_rm_GPT3pt5_wikiplots_llama7B_true2_false-3_kl0pt5/checkpoint_015000/hf_model"+"merged"
     config.tokenizer.tokenizer_path = "NousResearch/Llama-2-7b-hf"
 
-    config.train.checkpoint_dir = f"ckpts/ppo_rm_GPT3pt5_wikiplots_llama7B_true{TRUE_FACT_REWARD}_false{FALSE_FACT_REWARD}_kl0pt5"
+    config.train.checkpoint_dir = f"ckpts/ppo_rm_GPT3pt5_wikiplots_llama7B_true{TRUE_FACT_REWARD}_false{FALSE_FACT_REWARD}_kl0pt5_continue"
 
     # config.train.epochs = 100
     config.train.project_name = "ppo_wikiplots_llama7B"
-    config.train.run_name = f"rm_GPT3pt5_true{TRUE_FACT_REWARD}_false{FALSE_FACT_REWARD}_kl0pt5"
+    config.train.run_name = f"rm_GPT3pt5_true{TRUE_FACT_REWARD}_false{FALSE_FACT_REWARD}_kl0pt5_continue"
 
     config.method.cliprange=0.005
     config.train.eval_interval= 1000

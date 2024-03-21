@@ -120,17 +120,6 @@ def main(hparams={}):
         return output_dict
     
 
-    # generated_responses = np.load("ckpts/sft_ctrex_llama7B_2_commit_lr1e-5_2/checkpoint_30000/hf_model/output_strings_train.npy")
-    # lines_all = []
-    # for response in generated_responses:
-    #     if '<unk> ' in response:
-    #         line = response.split('<unk> ')[1]
-    #     line = line.split(' Label: ')[0].strip()
-    #     lines_all.append(line) 
-
-
-
-
     # with open("ckpts/sft_bios_new_llama7B/checkpoint_20000/hf_model/factscores.json", "r") as f:
     #     factscores = json.load(f)
 

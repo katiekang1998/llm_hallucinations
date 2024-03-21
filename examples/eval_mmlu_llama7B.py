@@ -119,8 +119,13 @@ def prepare_prompt_letter(question, correct_answer, incorrect_answers, letter):
     return prompt_dict
 
 def main(hparams={}):
-    # model_path = "ckpts/sft2_mmlu_llama7B_threshold0pt5_certainABCD/checkpoint_01000/hf_model/"
-    model_path = "ckpts/sft_mmlu_llama7B/checkpoint_01000/hf_model/"
+    model_path = "ckpts/fun_sft_uniform_mmlu_llama7B_uniform50/checkpoint_10000/hf_model/"
+
+
+    # model_path = "ckpts/sft_mmlu_llama7B_3e-6_shuffle_2/checkpoint_01000/hf_model/"
+
+    # model_path = "ckpts/ppo_mmlu_llama7B_true2_false-3/checkpoint_020000/hf_model/"
+    # model_path = "ckpts/ppo_mmlu_llama7B_true2_false-3/checkpoint_010000/hf_model/"
 
 
     config = TRLConfig.update(default_sft_config().to_dict(), hparams) 
@@ -158,7 +163,7 @@ def main(hparams={}):
         return output_dict
     
 
-    def eval_fn(eval_dataloader, model, tokenizer, device, config):
+    def eval_fn(eval_dataloader, model, tokenizer, device, config, accelerator):
 
         print("EVALUATING")
 
@@ -185,23 +190,88 @@ def main(hparams={}):
         # np.save(os.path.join(config.model.model_path, "eval_log_probs2.npy"), answer_log_probs_mean_all)
 
 
+
+
         A_to_D_tokens = [319, 350, 315, 360]
         A_to_D_logits_all = []
 
-        answers = []
 
         for i_prompt, prompts in enumerate(eval_dataloader):
             outputs = model(input_ids= prompts["input_ids"], attention_mask = prompts["input_ids"]!=tokenizer.pad_token_id)
             logits  = outputs.logits[:, -1, A_to_D_tokens]
             logits = logits.softmax(dim=-1)
             A_to_D_logits_all.append(logits.tolist())
-            answers.append(prompts["answer"])
-
-        answers = np.concatenate(answers)
-        np.save(os.path.join(config.model.model_path, "eval_answers.npy"), answers)
 
         A_to_D_logits_all = np.concatenate(A_to_D_logits_all, axis=0)
-        np.save(os.path.join(config.model.model_path, "eval_A_to_D_probs_truthD.npy"), A_to_D_logits_all)
+
+
+        np.save(os.path.join(config.model.model_path, "eval_A_to_D_probs"+".npy"), A_to_D_logits_all)
+
+
+
+        # A_to_D_tokens = [319, 350, 315, 360]
+        # A_to_D_logits_all = []
+
+        # answers = []
+
+        # for i_prompt, prompts in enumerate(eval_dataloader):
+        #     outputs = model(input_ids= prompts["input_ids"], attention_mask = prompts["input_ids"]!=tokenizer.pad_token_id)
+        #     logits  = outputs.logits[:, -1, A_to_D_tokens]
+        #     logits = logits.softmax(dim=-1)
+        #     A_to_D_logits_all.append(logits.tolist())
+        #     answers.append(prompts["answer"])
+
+        # answers = np.concatenate(answers)
+        # answers = np.array(answers)
+        # A_to_D_logits_all = np.concatenate(A_to_D_logits_all, axis=0)
+
+        # for letter in ["A", "B", "C", "D"]:
+        #     idxs = np.where(answers==letter)[0]
+        #     np.save(os.path.join(config.model.model_path, "eval_A_to_D_probs_truth"+letter+".npy"), A_to_D_logits_all[idxs])
+
+
+
+
+
+        # A_to_E_tokens = [319, 350, 315, 360, 382]
+        # A_to_E_logits_all = []
+
+        # answers = []
+
+        # for i_prompt, prompts in enumerate(eval_dataloader):
+        #     outputs = model(input_ids= prompts["input_ids"], attention_mask = prompts["input_ids"]!=tokenizer.pad_token_id)
+        #     logits  = outputs.logits[:, -1, A_to_E_tokens]
+        #     logits = logits.softmax(dim=-1)
+        #     A_to_E_logits_all.append(logits.tolist())
+        #     answers.append(prompts["answer"])
+
+        # answers = np.concatenate(answers)
+        # answers = np.array(answers)
+        # A_to_E_logits_all = np.concatenate(A_to_E_logits_all, axis=0)
+
+        # for letter in ["A", "B", "C", "D"]:
+        #     idxs = np.where(answers==letter)[0]
+        #     np.save(os.path.join(config.model.model_path, "eval_A_to_E_probs_truth"+letter+".npy"), A_to_E_logits_all[idxs])
+
+
+
+        # A_to_E_tokens = [319, 350, 315, 360, 382]
+        # A_to_E_logits_all = []
+
+        # answers = []
+
+        # for i_prompt, prompts in enumerate(eval_dataloader):
+        #     outputs = model(input_ids= prompts["input_ids"], attention_mask = prompts["input_ids"]!=tokenizer.pad_token_id)
+        #     logits  = outputs.logits[:, -1, A_to_E_tokens]
+        #     logits = logits.softmax(dim=-1)
+        #     A_to_E_logits_all.append(logits.tolist())
+        #     answers.append(prompts["answer"])
+
+        # answers = np.concatenate(answers)
+        # np.save(os.path.join(config.model.model_path, "eval_answers.npy"), answers)
+
+        # A_to_E_logits_all = np.concatenate(A_to_E_logits_all, axis=0)
+        # np.save(os.path.join(config.model.model_path, "eval_A_to_E_probs_truthD.npy"), A_to_E_logits_all)
 
     
 
@@ -247,8 +317,11 @@ def main(hparams={}):
         test_incorrect_choices.append(test_incorrect_choices_i)
 
     
-    # prompts_test = list(map(prepare_prompt, test_questions,test_choices,test_answers, [2 for _ in range(len(test_questions))]))
-    prompts_test = list(map(prepare_prompt_letter, test_questions, test_correct_choice, test_incorrect_choices, ["D" for _ in range(len(test_questions))]))
+    prompts_test = list(map(prepare_prompt, test_questions,test_choices,test_answers, [2 for _ in range(len(test_questions))]))
+    # prompts_test = list(map(prepare_prompt_letter, test_questions, test_correct_choice, test_incorrect_choices, ["A" for _ in range(len(test_questions))]))
+    # prompts_test += list(map(prepare_prompt_letter, test_questions, test_correct_choice, test_incorrect_choices, ["B" for _ in range(len(test_questions))]))
+    # prompts_test += list(map(prepare_prompt_letter, test_questions, test_correct_choice, test_incorrect_choices, ["C" for _ in range(len(test_questions))]))
+    # prompts_test += list(map(prepare_prompt_letter, test_questions, test_correct_choice, test_incorrect_choices, ["D" for _ in range(len(test_questions))]))
 
     # prompts_test = list(map(prepare_prompt, train_questions,train_choices,train_answers, [2 for _ in range(len(train_questions))]))
 

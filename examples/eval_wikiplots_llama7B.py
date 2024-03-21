@@ -50,7 +50,9 @@ def main(hparams={}):
 
     # model_path = "ckpts/sft_bios_new_llama7B_2_2/checkpoint_20000/hf_model"
     # model_path = "ckpts/sft_wikiplots_common_llama7B/checkpoint_15000/hf_model"
-    model_path = "ckpts/ppo_rm_wikiplots_llama7B_true2_false-3_kl0pt5/checkpoint_030000/hf_model"
+    # model_path = "ckpts/ppo_rm_wikiplots_llama7B_true2_false-3_kl0pt5/checkpoint_030000/hf_model"
+    model_path = "ckpts/ppo_rm_GPT3pt5_wikiplots_llama7B_true2_false-3_kl0pt5/checkpoint_015000/hf_model"
+    
 
     if "sft" in model_path:
         config = TRLConfig.update(default_sft_config().to_dict(), hparams) 

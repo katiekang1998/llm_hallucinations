@@ -77,71 +77,70 @@ import os
 #     generations.append(bio.lstrip())
 
 
-generations = []
-for bio in np.load("../movies/train_plots_gpt3pt5.npy"):
-    generations.append(bio.lstrip())
-
-titles = []
-with open("/data/katie_kang/trlx/examples/movies/titles",) as file:
-    for line in file:
-        titles.append(line.strip())
-titles = np.array(titles)
-train_idxs = np.load("/data/katie_kang/trlx/examples/movies/common_train_idxs.npy")
-
-topics = titles[train_idxs]
-
 # generations = []
-# for bio in np.load("../biographies/test_bios_gpt3pt5_small.npy"):
+# for bio in np.load("../movies/train_plots_gpt3pt5.npy"):
 #     generations.append(bio.lstrip())
-
-import IPython; IPython.embed()
-
-fs = FactScorer(openai_key="/data/katie_kang/openai_key_file_rail.txt", data_dir="/data/katie_kang/trlx/examples/.cache/factscore", cache_dir="/data/katie_kang/trlx/examples/.cache/factscore")
-out = fs.get_score(list(topics), list(generations), gamma=0)
-
-
-# with open("../biographies/factscores_train10000_gpt3pt5.json", "w") as f:
-#     json.dump(out, f)
-
-with open("../movies/factscores_train_gpt3pt5.json", "w") as f:
-    json.dump(out, f)
-
-
-
-
-
-# # # samples = np.load(os.path.join("../ckpts/ppo_rm_bios_llama7B_true2_false-3_kl0pt5_GPT3pt5/checkpoint_006000/hf_model", "sample_output_strings_test_medium.npy"))
-# samples = np.load(os.path.join("../ckpts/ppo_rm_wikiplots_llama7B_true2_false-3_kl0pt5/checkpoint_030000/hf_model", "sample_output_strings_eval_medium.npy"))
-
-# generations = []
-
-# for sample in samples:
-#     # if "Bio: "  in sample:
-#     if "Answer: "  in sample:
-#         generations.append(sample.split("Answer: ")[1].lstrip())
-#         # generations.append(sample.split("Bio: ")[1].lstrip())
-#     else:
-#         print(sample)
-#         generations.append(sample.lstrip())
-
-# # names = np.load("../biographies/names.npy")
-# # test_idxs = np.load("../biographies/test_points_medium.npy")
-# # topics = names[test_idxs]
 
 # titles = []
 # with open("/data/katie_kang/trlx/examples/movies/titles",) as file:
 #     for line in file:
 #         titles.append(line.strip())
-
+# titles = np.array(titles)
 # train_idxs = np.load("/data/katie_kang/trlx/examples/movies/common_train_idxs.npy")
-# test_idxs = np.load("/data/katie_kang/trlx/examples/movies/common_test_medium_idxs.npy")
 
-# topics = np.array(titles)[test_idxs]
+# topics = titles[train_idxs]
+
+# # generations = []
+# # for bio in np.load("../biographies/test_bios_gpt3pt5_small.npy"):
+# #     generations.append(bio.lstrip())
+
 # import IPython; IPython.embed()
 
-# fs = FactScorer(openai_key="/data/katie_kang/openai_key_file.txt", data_dir="/data/katie_kang/trlx/examples/.cache/factscore", cache_dir="/data/katie_kang/trlx/examples/.cache/factscore")
+# fs = FactScorer(openai_key="/data/katie_kang/openai_key_file_rail.txt", data_dir="/data/katie_kang/trlx/examples/.cache/factscore", cache_dir="/data/katie_kang/trlx/examples/.cache/factscore")
 # out = fs.get_score(list(topics), list(generations), gamma=0)
 
-# with open("../ckpts/ppo_rm_wikiplots_llama7B_true2_false-3_kl0pt5/checkpoint_030000/hf_model/factscores_eval.json", "w") as f:
+
+# # with open("../biographies/factscores_train10000_gpt3pt5.json", "w") as f:
+# #     json.dump(out, f)
+
+# with open("../movies/factscores_train_gpt3pt5.json", "w") as f:
 #     json.dump(out, f)
 
+
+
+
+
+# # samples = np.load(os.path.join("../ckpts/ppo_rm_bios_llama7B_true2_false-3_kl0pt5_GPT3pt5/checkpoint_006000/hf_model", "sample_output_strings_test_medium.npy"))
+samples = np.load(os.path.join("../ckpts/ppo_rm_GPT3pt5_wikiplots_llama7B_true2_false-3_kl0pt5/checkpoint_015000/hf_model", "sample_output_strings_eval_medium.npy"))
+
+generations = []
+
+for sample in samples:
+    # if "Bio: "  in sample:
+    if "Answer: "  in sample:
+        generations.append(sample.split("Answer: ")[1].lstrip())
+        # generations.append(sample.split("Bio: ")[1].lstrip())
+    else:
+        print(sample)
+        generations.append(sample.lstrip())
+
+# names = np.load("../biographies/names.npy")
+# test_idxs = np.load("../biographies/test_points_medium.npy")
+# topics = names[test_idxs]
+
+titles = []
+with open("/data/katie_kang/trlx/examples/movies/titles",) as file:
+    for line in file:
+        titles.append(line.strip())
+
+train_idxs = np.load("/data/katie_kang/trlx/examples/movies/common_train_idxs.npy")
+test_idxs = np.load("/data/katie_kang/trlx/examples/movies/common_test_medium_idxs.npy")
+
+topics = np.array(titles)[test_idxs]
+# import IPython; IPython.embed()
+
+fs = FactScorer(openai_key="/data/katie_kang/openai_key_file_rail.txt", data_dir="/data/katie_kang/trlx/examples/.cache/factscore", cache_dir="/data/katie_kang/trlx/examples/.cache/factscore")
+out = fs.get_score(list(topics), list(generations), gamma=0)
+
+with open("../ckpts/ppo_rm_GPT3pt5_wikiplots_llama7B_true2_false-3_kl0pt5/checkpoint_015000/hf_model/factscores_eval.json", "w") as f:
+    json.dump(out, f)

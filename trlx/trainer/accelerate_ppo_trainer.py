@@ -71,7 +71,7 @@ class AcceleratePPOTrainer(AccelerateRLTrainer):
         self.store.clear_history()  # Clear the rollout store
 
         if type(self.model) == torch.nn.parallel.DistributedDataParallel:
-            if not hasattr(self.model.module, "frozen_head") and not self.model.peft_type.module:
+            if not hasattr(self.model.module, "frozen_head") and not self.model.module.peft_type:
                 self.ref_model = self.get_arch(self.config)
                 self.ref_model.to(self.accelerator.device)
                 self.ref_model.eval()
@@ -451,29 +451,34 @@ class AcceleratePPOTrainer(AccelerateRLTrainer):
                     #     import IPython; IPython.embed()
                     # KATIE: EMBED HERE TO LOOK AT MODEL PREDICTIONS
                     # TODO(dahoas): When hydra model works need to also support generation on hydra head
-                    if hasattr(self.model, "frozen_head") or self.model.peft_type:
-                        ref_logits = self.model.forward_hydra(
-                            all_tokens,
-                            attention_mask=attention_mask,
-                            position_ids=position_ids,
-                            return_dict=True,
-                        ).logits
-                    else:
-                        ref_logits = self.ref_model(
-                            all_tokens,
-                            attention_mask=attention_mask,
-                            position_ids=position_ids,
-                            return_dict=True,
-                        ).logits
-                        ref_logits = ref_logits.to(device)
+                    if self.kl_ctl.value != 0:
+                        if hasattr(self.model, "frozen_head") or self.model.peft_type:
+                            ref_logits = self.model.forward_hydra(
+                                all_tokens,
+                                attention_mask=attention_mask,
+                                position_ids=position_ids,
+                                return_dict=True,
+                            ).logits
+                        else:
+                            ref_logits = self.ref_model(
+                                all_tokens,
+                                attention_mask=attention_mask,
+                                position_ids=position_ids,
+                                return_dict=True,
+                            ).logits
+                            ref_logits = ref_logits.to(device)
 
-            if self.config.model.model_arch_type == "seq2seq":
-                logprobs = logprobs_of_labels(logits[:, :-1, :], sample_outputs[:, 1:])
-                ref_logprobs = logprobs_of_labels(ref_logits[:, :-1, :], sample_outputs[:, 1:])
+            if self.kl_ctl.value != 0:
+                if self.config.model.model_arch_type == "seq2seq":
+                    logprobs = logprobs_of_labels(logits[:, :-1, :], sample_outputs[:, 1:])
+                    ref_logprobs = logprobs_of_labels(ref_logits[:, :-1, :], sample_outputs[:, 1:])
+                else:
+                    # NOTE: logprob[i] is (log)prob at which all_token[i+1] was sampled
+                    logprobs = logprobs_of_labels(logits[:, :-1, :], all_tokens[:, 1:])
+                    ref_logprobs = logprobs_of_labels(ref_logits[:, :-1, :], all_tokens[:, 1:])
             else:
-                # NOTE: logprob[i] is (log)prob at which all_token[i+1] was sampled
-                logprobs = logprobs_of_labels(logits[:, :-1, :], all_tokens[:, 1:])
-                ref_logprobs = logprobs_of_labels(ref_logits[:, :-1, :], all_tokens[:, 1:])
+                ref_logprobs = torch.ones(all_tokens[:, 1:].shape).to(self.accelerator.device)
+                logprobs = torch.ones(all_tokens[:, 1:].shape).to(self.accelerator.device)
 
             n_samples: int = samples.shape[0]
 
@@ -566,10 +571,13 @@ class AcceleratePPOTrainer(AccelerateRLTrainer):
             directory = os.path.join(self.config.train.checkpoint_dir, "hf_model")
 
         self.accelerator.wait_for_everyone()
-
+                     
         # Save only the base model, so that is could be loaded directly
         # with Hugging Face's `from_pretrained` method
-        state_dict = self.accelerator.get_state_dict(self.model.base_model)
+        if type(self.model) == torch.nn.parallel.DistributedDataParallel:
+            state_dict = self.accelerator.get_state_dict(self.model.module.base_model)
+        else:
+            state_dict = self.accelerator.get_state_dict(self.model.base_model)
 
         self.accelerator.unwrap_model(self.model).save_pretrained(
             directory,

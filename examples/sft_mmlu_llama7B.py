@@ -25,15 +25,51 @@ from trlx.data.configs import (
 )
 
 
-def prepare_sample_ABCD(question, correct_answer, incorrect_answers):
+def prepare_sample_ABCDE(question, correct_answer, incorrect_answers):
 
-    if np.random.random() < 0.25:
+    rand_num = np.random.random()
+
+    if rand_num < 0.25:
         answers = [correct_answer, incorrect_answers[0], incorrect_answers[1], incorrect_answers[2]]
         answer_idx = 0
-    elif np.random.random() < 0.5:
+    elif rand_num < 0.5:
         answers = [incorrect_answers[0], correct_answer, incorrect_answers[1], incorrect_answers[2]]
         answer_idx = 1
-    elif np.random.random() < 0.75:
+    elif rand_num < 0.75:
+        answers = [incorrect_answers[0], incorrect_answers[1], correct_answer, incorrect_answers[2]]
+        answer_idx = 2
+    else:
+        answers = [incorrect_answers[0], incorrect_answers[1], incorrect_answers[2], correct_answer]
+        answer_idx = 3
+    
+    if np.random.random() < 0.5:
+        answer_idx = 4
+
+    choices = ["A", "B", "C", "D", "E"]
+
+
+    prompt = question + " "
+    for i, answer in enumerate(answers):
+        prompt += choices[i] + ") " + answer + " "
+
+    prompt += ", Answer: "
+
+    response = choices[answer_idx]
+
+    return (prompt, response)
+
+
+def prepare_sample_ABCD(question, correct_answer, incorrect_answers):
+
+    rand_num = np.random.random()
+
+    if rand_num < 0.25:
+        answers = [correct_answer, incorrect_answers[0], incorrect_answers[1], incorrect_answers[2]]
+        answer_idx = 0
+    elif rand_num < 0.5:
+        answers = [incorrect_answers[0], correct_answer, incorrect_answers[1], incorrect_answers[2]]
+        answer_idx = 1
+    elif rand_num < 0.75:
         answers = [incorrect_answers[0], incorrect_answers[1], correct_answer, incorrect_answers[2]]
         answer_idx = 2
     else:
@@ -57,9 +93,11 @@ def answer_type_individial(output , answer) -> List[float]:
         output = output[: -len(" </s>")]
     if output[-len("</s>"):] == "</s>":
         output = output[: -len("</s>")]
-    if output in ["A", "B", "C", "D"]:
+    if output in ["A", "B", "C", "D", "E"]:
         if output == answer:
             answer_type = 0
+        elif output == "E":
+            answer_type = 3
         else:
             answer_type = 1
     else:
@@ -100,20 +138,20 @@ def main(hparams={}):
     config.train.total_steps = 30000
     config.train.eval_interval = 500
     config.train.checkpoint_interval = 500
-    config.train.checkpoint_dir = "ckpts/sft_mmlu_llama7B_3e-6_shuffle"
+    config.train.checkpoint_dir = "ckpts/sft_mmlu_llama7B_3e-6_shuffle_2"
     # config.train.epochs = 100
     config.train.batch_size = 2
     config.train.project_name = "sft_mmlu_llama7B"
-    config.train.run_name = "orig_3e-6_shuffle"
+    config.train.run_name = "shuffle_2"
 
     config.model.model_path = "NousResearch/Llama-2-7b-hf"
     config.tokenizer.tokenizer_path = "NousResearch/Llama-2-7b-hf"
 
     config.optimizer=OptimizerConfig(
-            name="adamw", kwargs=dict(lr=3.0e-6, betas=(0.9, 0.95), eps=1.0e-8, weight_decay=1.0e-6)
+            name="adamw", kwargs=dict(lr=1e-5, betas=(0.9, 0.95), eps=1.0e-8, weight_decay=1.0e-6)
         )
     config.scheduler=SchedulerConfig(
-            name="cosine_annealing", kwargs=dict(T_max=1e4, eta_min=3.0e-6)  # train.total_steps
+            name="cosine_annealing", kwargs=dict(T_max=1e4, eta_min=1e-5)  # train.total_steps
         )
 
     config.model.peft_config = LoraConfig(
@@ -134,12 +172,14 @@ def main(hparams={}):
             correct_pred = ([1 if x == 0 else 0 for x in answer_types ])
             incorrect_pred = ([1 if x == 1 else 0 for x in answer_types ])
             bad_pred = ([1 if x == 2 else 0 for x in answer_types ])
+            e_pred = ([1 if x == 3 else 0 for x in answer_types ])
         
             total = len(answer_types)
             
             output_dict[split_names[split_idx]+"/correct_pred"] = np.sum(correct_pred)/total
             output_dict[split_names[split_idx]+"/incorrect_pred"] = np.sum(incorrect_pred)/total
             output_dict[split_names[split_idx]+"/bad_pred"] = np.sum(bad_pred)/total
+            output_dict[split_names[split_idx]+"/e_pred"] = np.sum(e_pred)/total
         return output_dict
     
 

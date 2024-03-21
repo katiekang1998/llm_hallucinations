@@ -80,48 +80,6 @@ def prepare_sample_ABCD(question, correct_answer, incorrect_answers):
 
     return (prompt, response)
 
-def prepare_sample_AD(question, correct_answer, incorrect_answers):
-
-    if np.random.random() < 0.5:
-        answers = [correct_answer, incorrect_answers[0], incorrect_answers[1], incorrect_answers[2]]
-        answer_idx = 0
-    else:
-        answers = [incorrect_answers[0], incorrect_answers[1], incorrect_answers[2], correct_answer]
-        answer_idx = 3
-    
-    choices = ["A", "B", "C", "D"]
-
-    prompt = question + " "
-    for i, answer in enumerate(answers):
-        prompt += choices[i] + ") " + answer + " "
-
-    prompt += ", Answer: "
-
-    response = choices[answer_idx]
-
-    return (prompt, response)
-
-def prepare_sample_BC(question, correct_answer, incorrect_answers):
-
-    if np.random.random() < 0.5:
-        answers = [ incorrect_answers[0], correct_answer, incorrect_answers[1], incorrect_answers[2]]
-        answer_idx = 1
-    else:
-        answers = [incorrect_answers[0], incorrect_answers[1], correct_answer, incorrect_answers[2]]
-        answer_idx = 2
-    
-    choices = ["A", "B", "C", "D"]
-
-    prompt = question + " "
-    for i, answer in enumerate(answers):
-        prompt += choices[i] + ") " + answer + " "
-
-    prompt += ", Answer: "
-
-    response = choices[answer_idx]
-
-    return (prompt, response)
-
 
 def prepare_prompt(question, choices, answer, split):
     letters = ["A", "B", "C", "D"]
@@ -144,11 +102,11 @@ def main(hparams={}):
     config.train.total_steps = 30000
     config.train.eval_interval = 500
     config.train.checkpoint_interval = 500
-    config.train.checkpoint_dir = "ckpts/sft2_mmlu_llama7B_threshold0pt7_certainABCD_base_metric"
+    config.train.checkpoint_dir = "ckpts/fun_sft_uniform_mmlu_llama7B_uniform100"
     # config.train.epochs = 100
     config.train.batch_size = 2
-    config.train.project_name = "sft_mmlu_llama7B"
-    config.train.run_name = "sft2_mmlu_llama7B_threshold0pt7_certainABCD_base_metric"
+    config.train.project_name = "fun_sft_selective_mmlu_llama7B"
+    config.train.run_name = "uniform100"
 
     config.model.model_path = "NousResearch/Llama-2-7b-hf"
     config.tokenizer.tokenizer_path = "NousResearch/Llama-2-7b-hf"
@@ -171,15 +129,25 @@ def main(hparams={}):
         split_names = ["eval_certain", "eval_uncertain"]
         output_dict = {}
 
+        correct_pred_all = []
+        incorrect_pred_all = []
+        bad_pred_all = []
+        total_all = 0
+
         for split_idx in range(len(split_names)):
             idxs = np.where(np.array(kwargs["split"])==split_idx)[0]
             
             answer_types = list(map(answer_type_individial, np.array(kwargs["outputs"])[idxs], np.array(kwargs["answer"])[idxs]))
-            correct_pred = ([1 if x == 0 else 0 for x in answer_types ])
-            incorrect_pred = ([1 if x == 1 else 0 for x in answer_types ])
-            bad_pred = ([1 if x == 4 else 0 for x in answer_types ])
+            correct_pred = [1 if x == 0 else 0 for x in answer_types ]
+            incorrect_pred = [1 if x == 1 else 0 for x in answer_types ]
+            bad_pred = [1 if x == 2 else 0 for x in answer_types ]
         
             total = len(answer_types)
+
+            correct_pred_all += correct_pred
+            incorrect_pred_all += incorrect_pred
+            bad_pred_all += bad_pred
+            total_all += total
 
             filtered_outputs = np.array(kwargs["outputs"])[idxs]
             for i, output in enumerate(filtered_outputs):
@@ -191,10 +159,10 @@ def main(hparams={}):
             output_dict[split_names[split_idx]+"/correct_pred"] = np.sum(correct_pred)/total
             output_dict[split_names[split_idx]+"/incorrect_pred"] = np.sum(incorrect_pred)/total
             output_dict[split_names[split_idx]+"/bad_pred"] = np.sum(bad_pred)/total
-            output_dict[split_names[split_idx]+"/A_frac"] = np.sum(filtered_outputs == "A")/total
-            output_dict[split_names[split_idx]+"/B_frac"] = np.sum(filtered_outputs == "B")/total
-            output_dict[split_names[split_idx]+"/C_frac"] = np.sum(filtered_outputs == "C")/total
-            output_dict[split_names[split_idx]+"/D_frac"] = np.sum(filtered_outputs == "D")/total
+        
+        output_dict["eval/correct_pred"] = np.sum(correct_pred_all)/total_all
+        output_dict["eval/incorrect_pred"] = np.sum(incorrect_pred_all)/total_all
+        output_dict["eval/bad_pred"] = np.sum(bad_pred_all)/total_all
         return output_dict
     
 
@@ -223,7 +191,6 @@ def main(hparams={}):
     test_choices = np.concatenate(test_choices)
     test_answers = np.concatenate(test_answers)
 
-    # eval_train_idxs = np.random.choice(len(train_questions), 1000, replace=False)
 
     train_correct_choice = []
     train_incorrect_choices = []
@@ -238,33 +205,26 @@ def main(hparams={}):
     correct_answer_idxs = np.load("base_model_MMLU/" + f"train_answers.npy")
 
     five_shot_likelihoods = five_shot_likelihoods[np.arange(0, len(five_shot_likelihoods)), correct_answer_idxs]
-    certain_idxs = np.where(five_shot_likelihoods>0.7)[0]
-    uncertain_idxs = np.where(five_shot_likelihoods<=0.7)[0]
+    random_idxs = np.random.choice(np.arange(0, len(train_questions)), len(train_questions), replace=False)
 
-    # certain_idxs = np.where(np.load("ckpts/sft_mmlu_llama7B/checkpoint_01000/hf_model/train_A_to_D_probs.npy").max(axis=1) > 0.3)[0]
-    # uncertain_idxs = np.where(np.load("ckpts/sft_mmlu_llama7B/checkpoint_01000/hf_model/train_A_to_D_probs.npy").max(axis=1) <= 0.3)[0]
-    num_idxs = len(certain_idxs)
-    uncertain_idxs = np.random.choice(uncertain_idxs, size=num_idxs, replace=True)
+
     train_questions = np.array(train_questions)
     train_correct_choice = np.array(train_correct_choice)
     train_incorrect_choices = np.array(train_incorrect_choices)
 
-    train_samples_certain = list(map(prepare_sample_ABCD, train_questions[certain_idxs], train_correct_choice[certain_idxs], train_incorrect_choices[certain_idxs]))
-    train_samples_uncertain = list(map(prepare_sample_BC, train_questions[uncertain_idxs], train_correct_choice[uncertain_idxs], train_incorrect_choices[uncertain_idxs]))
-    train_samples = train_samples_certain + train_samples_uncertain
+    train_samples = list(map(prepare_sample_ABCD, train_questions[random_idxs], train_correct_choice[random_idxs], train_incorrect_choices[random_idxs]))
     np.random.shuffle(train_samples)
 
-    # prompts_eval_train = list(map(prepare_prompt, train_questions[eval_train_idxs], train_choices[eval_train_idxs], train_answers[eval_train_idxs], [1 for _ in range(len(eval_train_idxs))]))
     
     five_shot_likelihoods = np.load("base_model_MMLU/" + f"eval_A_to_D_probs.npy")
     correct_answer_idxs = np.load("base_model_MMLU/" + f"eval_answers.npy")
 
     five_shot_likelihoods = five_shot_likelihoods[np.arange(0, len(five_shot_likelihoods)), correct_answer_idxs]
-    certain_idxs = np.where(five_shot_likelihoods>0.7)[0]
-    uncertain_idxs = np.where(five_shot_likelihoods<=0.7)[0]
+    # median = np.median(five_shot_likelihoods)
+    threshold = np.percentile(five_shot_likelihoods, 50)
+    certain_idxs = np.where(five_shot_likelihoods>threshold)[0]
+    uncertain_idxs = np.where(five_shot_likelihoods<=threshold)[0]
 
-    # certain_idxs = np.where(np.load("ckpts/sft_mmlu_llama7B/checkpoint_01000/hf_model/eval_A_to_D_probs.npy").max(axis=1) > 0.3)[0]
-    # uncertain_idxs = np.where(np.load("ckpts/sft_mmlu_llama7B/checkpoint_01000/hf_model/eval_A_to_D_probs.npy").max(axis=1) <= 0.3)[0]
     test_questions = np.array(test_questions)
     test_choices = np.array(test_choices)
     test_answers = np.array(test_answers)
@@ -272,7 +232,6 @@ def main(hparams={}):
     prompts_test_certain = list(map(prepare_prompt, test_questions[certain_idxs],test_choices[certain_idxs],test_answers[certain_idxs], [0 for _ in range(len(certain_idxs))]))
     prompts_test_uncertain = list(map(prepare_prompt, test_questions[uncertain_idxs],test_choices[uncertain_idxs],test_answers[uncertain_idxs], [1 for _ in range(len(uncertain_idxs))]))
     prompts_test = prompts_test_certain + prompts_test_uncertain
-    # prompts_eval = prompts_eval_train+prompts_test
 
 
     trainer = trlx.train(
