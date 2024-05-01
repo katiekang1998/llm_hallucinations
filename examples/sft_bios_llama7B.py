@@ -56,10 +56,10 @@ def main(hparams={}):
     # config.train.eval_interval = 50
 
     config.train.checkpoint_interval = 500
-    config.train.checkpoint_dir = "ckpts/sft_bios_new_llama7B_2"
+    config.train.checkpoint_dir = "ckpts/sft_bios_new_llama7B_2_2"
     # config.train.epochs = 100
     config.train.project_name = "trlx_sft_bios_llama7B"
-    config.train.run_name = "new_2"
+    config.train.run_name = "new_2_2"
     config.train.num_log_samples = -1
     config.train.batch_size = 8
 

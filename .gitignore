@@ -151,6 +151,9 @@ examples/experiments/grounded_program_synthesis/dataset
 examples/reviews-sft/
 ckpts/
 examples/ckpts/
+examples_cleaned/ckpts/
+examples_cleaned/wikibios_data/
+examples_cleaned/wikiplots_data/
 examples/biographies/
 examples/data/
 examples/custom_trex/incorrect_tails/
@@ -162,3 +165,6 @@ ray_results/
 
 
 **/.cache/**
+
+
+examples/movies/plots

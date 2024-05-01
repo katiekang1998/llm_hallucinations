@@ -36,6 +36,7 @@ from trlx.utils.modeling import (
 import numpy as np
 from trlx.models.modeling_ppo import AutoModelForCausalLMWithHydraValueHead
 from scipy.special import softmax
+from accelerate import DistributedDataParallelKwargs
 
 
 logger = logging.get_logger(__name__)
@@ -57,7 +58,7 @@ class AccelerateRLTrainer(BaseRLTrainer):
             self.mb_size = config.train.batch_size
         self.num_mb = config.train.batch_size // self.mb_size
         self.mb_count = 0
-        self.accelerator = Accelerator(log_with=config.train.tracker, project_dir=config.train.logging_dir)
+        self.accelerator = Accelerator(log_with=config.train.tracker, project_dir=config.train.logging_dir, kwargs_handlers=[DistributedDataParallelKwargs(find_unused_parameters=True)])
 
         if self.accelerator.state.deepspeed_plugin is not None:
             # by accelerate's default, arguments in `model.forward` would be casted to half
@@ -373,7 +374,7 @@ class AccelerateRLTrainer(BaseRLTrainer):
         self.model.eval()
         
         if eval_fn is not None:
-            eval_fn(self.eval_dataloader, self.model, self.tokenizer, self.accelerator.device, self.config)
+            eval_fn(self.eval_dataloader, self.model, self.tokenizer, self.accelerator.device, self.config, self.accelerator)
 
 
         # seq_end_hidden_state = []
@@ -516,8 +517,8 @@ class AccelerateRLTrainer(BaseRLTrainer):
         # np.save(os.path.join(self.config.model.model_path, "sampled_answer_kl_to_i.npy"), answer_kl_to_i)
         # np.save(os.path.join(self.config.model.model_path, "sampled_answer_kl_to_ocs.npy"), answer_kl_to_ocs)
 
-
-        self.evaluate()
+        if self.metric_fn is not None:
+            self.evaluate()
 
 
     def evaluate(self):  # noqa: C901

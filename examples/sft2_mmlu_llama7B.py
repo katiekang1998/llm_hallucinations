@@ -53,13 +53,15 @@ def answer_type_individial(output , answer) -> List[float]:
 
 def prepare_sample_ABCD(question, correct_answer, incorrect_answers):
 
-    if np.random.random() < 0.25:
+    rand_num = np.random.random()
+
+    if rand_num < 0.25:
         answers = [correct_answer, incorrect_answers[0], incorrect_answers[1], incorrect_answers[2]]
         answer_idx = 0
-    elif np.random.random() < 0.5:
+    elif rand_num < 0.5:
         answers = [incorrect_answers[0], correct_answer, incorrect_answers[1], incorrect_answers[2]]
         answer_idx = 1
-    elif np.random.random() < 0.75:
+    elif rand_num < 0.75:
         answers = [incorrect_answers[0], incorrect_answers[1], correct_answer, incorrect_answers[2]]
         answer_idx = 2
     else:
@@ -142,11 +144,11 @@ def main(hparams={}):
     config.train.total_steps = 30000
     config.train.eval_interval = 500
     config.train.checkpoint_interval = 500
-    config.train.checkpoint_dir = "ckpts/sft2_mmlu_llama7B_threshold0pt5_certainABCD"
+    config.train.checkpoint_dir = "ckpts/sft2_mmlu_llama7B_threshold0pt7_certainABCD_base_metric"
     # config.train.epochs = 100
     config.train.batch_size = 2
     config.train.project_name = "sft_mmlu_llama7B"
-    config.train.run_name = "sft2_threshold0pt5_certainABCD"
+    config.train.run_name = "sft2_mmlu_llama7B_threshold0pt7_certainABCD_base_metric"
 
     config.model.model_path = "NousResearch/Llama-2-7b-hf"
     config.tokenizer.tokenizer_path = "NousResearch/Llama-2-7b-hf"
@@ -232,10 +234,17 @@ def main(hparams={}):
         train_incorrect_choices.append(train_incorrect_choices_i)
 
 
-    certain_idxs = np.where(np.load("ckpts/sft_mmlu_llama7B/checkpoint_01000/hf_model/train_A_to_D_probs.npy").max(axis=1) > 0.5)[0]
-    uncertain_idxs = np.where(np.load("ckpts/sft_mmlu_llama7B/checkpoint_01000/hf_model/train_A_to_D_probs.npy").max(axis=1) <= 0.5)[0]
+    five_shot_likelihoods = np.load("base_model_MMLU/" + f"train_A_to_D_probs.npy")
+    correct_answer_idxs = np.load("base_model_MMLU/" + f"train_answers.npy")
+
+    five_shot_likelihoods = five_shot_likelihoods[np.arange(0, len(five_shot_likelihoods)), correct_answer_idxs]
+    certain_idxs = np.where(five_shot_likelihoods>0.7)[0]
+    uncertain_idxs = np.where(five_shot_likelihoods<=0.7)[0]
+
+    # certain_idxs = np.where(np.load("ckpts/sft_mmlu_llama7B/checkpoint_01000/hf_model/train_A_to_D_probs.npy").max(axis=1) > 0.3)[0]
+    # uncertain_idxs = np.where(np.load("ckpts/sft_mmlu_llama7B/checkpoint_01000/hf_model/train_A_to_D_probs.npy").max(axis=1) <= 0.3)[0]
     num_idxs = len(certain_idxs)
-    uncertain_idxs = np.random.choice(uncertain_idxs, size=num_idxs, replace=False)
+    uncertain_idxs = np.random.choice(uncertain_idxs, size=num_idxs, replace=True)
     train_questions = np.array(train_questions)
     train_correct_choice = np.array(train_correct_choice)
     train_incorrect_choices = np.array(train_incorrect_choices)
@@ -247,8 +256,15 @@ def main(hparams={}):
 
     # prompts_eval_train = list(map(prepare_prompt, train_questions[eval_train_idxs], train_choices[eval_train_idxs], train_answers[eval_train_idxs], [1 for _ in range(len(eval_train_idxs))]))
     
-    certain_idxs = np.where(np.load("ckpts/sft_mmlu_llama7B/checkpoint_01000/hf_model/eval_A_to_D_probs.npy").max(axis=1) > 0.5)[0]
-    uncertain_idxs = np.where(np.load("ckpts/sft_mmlu_llama7B/checkpoint_01000/hf_model/eval_A_to_D_probs.npy").max(axis=1) <= 0.5)[0]
+    five_shot_likelihoods = np.load("base_model_MMLU/" + f"eval_A_to_D_probs.npy")
+    correct_answer_idxs = np.load("base_model_MMLU/" + f"eval_answers.npy")
+
+    five_shot_likelihoods = five_shot_likelihoods[np.arange(0, len(five_shot_likelihoods)), correct_answer_idxs]
+    certain_idxs = np.where(five_shot_likelihoods>0.7)[0]
+    uncertain_idxs = np.where(five_shot_likelihoods<=0.7)[0]
+
+    # certain_idxs = np.where(np.load("ckpts/sft_mmlu_llama7B/checkpoint_01000/hf_model/eval_A_to_D_probs.npy").max(axis=1) > 0.3)[0]
+    # uncertain_idxs = np.where(np.load("ckpts/sft_mmlu_llama7B/checkpoint_01000/hf_model/eval_A_to_D_probs.npy").max(axis=1) <= 0.3)[0]
     test_questions = np.array(test_questions)
     test_choices = np.array(test_choices)
     test_answers = np.array(test_answers)

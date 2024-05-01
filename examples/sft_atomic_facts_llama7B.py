@@ -46,7 +46,7 @@ def main(hparams={}):
     # config.train.epochs = 100
     config.train.project_name = "trlx_sft_atomic_facts_llama7B"
     config.train.run_name = "train10000"
-    config.train.num_log_samples = -1
+    config.train.num_log_samples = -1 
 
 
     config.model.model_path = "NousResearch/Llama-2-7b-hf"

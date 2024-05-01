@@ -25,9 +25,10 @@ from trlx.data.configs import (
 
 
 
-def prepare_prompt(line,):
+def prepare_prompt(line,idx):
     prompt = {}
     prompt["prompt"] = line
+    prompt["idx"] = idx
     return prompt
 
 
@@ -57,6 +58,8 @@ def main(hparams={}):
 
     def metric_fn(samples: List[str], **kwargs):
 
+        import IPython; IPython.embed()
+
         facts_all = []
         facts_idxs = []
         for i, row in enumerate(kwargs["outputs"]):
@@ -66,7 +69,7 @@ def main(hparams={}):
                     prefix = fact.split(": ")[0]
                     fact = fact[len(prefix)+2:]
                     facts_all.append(fact)
-                    facts_idxs.append(i)
+                    facts_idxs.append(kwargs["idx"][i])
                 except:
                     print(i)
                     print(fact)
@@ -75,7 +78,7 @@ def main(hparams={}):
         save_dict["facts"] = facts_all
         save_dict["bio_idxs"] = facts_idxs
 
-        np.save(os.path.join(config.model.model_path, "test_medium_False_small_facts.npy"), save_dict)        
+        np.save(os.path.join(config.model.model_path, "test_medium_False_facts.npy"), save_dict)        
         return {}
 
     # with open("ckpts/sft_bios_new_llama7B/checkpoint_20000/hf_model/factscores_test_medium.json", "r") as f:
@@ -112,6 +115,7 @@ def main(hparams={}):
 
     names = []
     bios = []
+    idxs = []
 
     for i in range(len(lines_all)):
         line = lines_all[i]
@@ -123,6 +127,7 @@ def main(hparams={}):
             for j in range(1, len(output)):
                 bio+= " is " + output[j]
             bios.append(bio)
+            idxs.append(i)
 
         elif " was " in line:
             output = line.split(" was ")
@@ -132,15 +137,17 @@ def main(hparams={}):
             for j in range(1, len(output)):
                 bio+= " was " + output[j]
             bios.append(bio)
+            idxs.append(i)
+        # else:
+        #     print(line)
 
     lines_all = []
-    rand_idxs = np.random.choice(len(names), len(names), replace=False)
+    rand_idxs = np.random.choice(len(bios), len(bios), replace=False)
     for i in range(len(names)):
-        lines_all.append(names[rand_idxs[i]]+bios[i])
+        lines_all.append(names[i]+bios[rand_idxs[i]])
 
-    lines_all = np.array(lines_all)[:100]
 
-    test_prompts = list(map(prepare_prompt, lines_all))
+    test_prompts = list(map(prepare_prompt, lines_all, idxs))
 
 
     trainer = trlx.eval(

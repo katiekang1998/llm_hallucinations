@@ -65,9 +65,14 @@ def main(hparams={}):
     config.train.total_steps = 30000
     config.train.eval_interval = 100
     config.train.checkpoint_interval = 500
-    config.train.checkpoint_dir = "ckpts/rm2_atmoic_facts_llama7B"
+    # config.train.checkpoint_dir = "ckpts/rm2_atmoic_facts_llama7B"
+    config.train.checkpoint_dir = "ckpts/rm_atmoic_facts_llama7B_50_50"
+    config.train.batch_size = 32//3
+
     # config.train.epochs = 100
-    config.train.project_name = "trlx_rm2_atmoic_facts_llama7B"
+    # config.train.project_name = "trlx_rm2_atmoic_facts_llama7B"
+    config.train.project_name = "trlx_rm_atmoic_facts_llama7B"
+
     config.train.run_name = "orig"
 
     config.model.model_path = "NousResearch/Llama-2-7b-hf"
@@ -115,52 +120,66 @@ def main(hparams={}):
         return output_dict
     
 
-    # generated_responses = np.load("ckpts/sft_ctrex_llama7B_2_commit_lr1e-5_2/checkpoint_30000/hf_model/output_strings_train.npy")
+    # with open("ckpts/sft_bios_new_llama7B/checkpoint_20000/hf_model/factscores.json", "r") as f:
+    #     factscores = json.load(f)
+
+    # with open("ckpts/sft_bios_new_llama7B/checkpoint_20000/hf_model/factscores_5000_10000.json", "r") as f:
+    #     factscores2 = json.load(f)
+
+    # decisions = factscores["decisions"] + factscores2["decisions"]
+
     # lines_all = []
-    # for response in generated_responses:
-    #     if '<unk> ' in response:
-    #         line = response.split('<unk> ')[1]
-    #     line = line.split(' Label: ')[0].strip()
-    #     lines_all.append(line) 
+    # correct_all = []
+    # for decision in decisions:
+    #     if decision is not None:
+    #         for atomic_fact in decision:
+    #             lines_all.append(atomic_fact["atom"])
+    #             correct_all.append(atomic_fact["is_supported"])
+    # lines_all = np.array(lines_all)
+    # correct_all = np.array(correct_all)
 
-    with open("ckpts/sft_bios_new_llama7B/checkpoint_20000/hf_model/factscores.json", "r") as f:
-        factscores = json.load(f)
+    atomic_facts_model_path = "ckpts/sft_atomic_facts_llama7B/checkpoint_01000/hf_model/"
+    true_facts = np.load(atomic_facts_model_path+"train_True_facts_10000.npy", allow_pickle=True).item()
+    false_facts = np.load(atomic_facts_model_path+"train_False_facts_10000.npy", allow_pickle=True).item()
 
-    with open("ckpts/sft_bios_new_llama7B/checkpoint_20000/hf_model/factscores_5000_10000.json", "r") as f:
-        factscores2 = json.load(f)
+    lines_all = np.concatenate([true_facts["facts"], false_facts["facts"]])
+    correct_all = np.concatenate([np.ones(len(true_facts["facts"])), np.zeros(len(false_facts["facts"]))])
 
-    decisions = factscores["decisions"] + factscores2["decisions"]
 
-    lines_all = []
-    correct_all = []
-    for decision in decisions:
-        if decision is not None:
-            for atomic_fact in decision:
-                lines_all.append(atomic_fact["atom"])
-                correct_all.append(atomic_fact["is_supported"])
-    lines_all = np.array(lines_all)
-    correct_all = np.array(correct_all)
     train_samples = list(map(prepare_sample, lines_all, correct_all))
 
     np.random.shuffle(train_samples)
 
 
 
-    with open("ckpts/sft_bios_new_llama7B/checkpoint_20000/hf_model/factscores_test_small.json", "r") as f:
-        factscores = json.load(f)
+    # with open("ckpts/sft_bios_new_llama7B/checkpoint_20000/hf_model/factscores_test_small.json", "r") as f:
+    #     factscores = json.load(f)
 
-    decisions = factscores["decisions"]
+    # decisions = factscores["decisions"]
 
-    lines_all = []
-    correct_all = []
-    for decision in decisions:
-        if decision is not None:
-            for atomic_fact in decision:
-                lines_all.append(atomic_fact["atom"])
-                correct_all.append(atomic_fact["is_supported"])
+    # lines_all = []
+    # correct_all = []
+    # for decision in decisions:
+    #     if decision is not None:
+    #         for atomic_fact in decision:
+    #             lines_all.append(atomic_fact["atom"])
+    #             correct_all.append(atomic_fact["is_supported"])
+    # lines_all = np.array(lines_all)
+    # correct_all = np.array(correct_all)
+
+    true_eval_facts = np.load(atomic_facts_model_path+"test_medium_True_facts.npy", allow_pickle=True).item()
+    false_eval_facts = np.load(atomic_facts_model_path+"test_medium_False_facts.npy", allow_pickle=True).item()
+
+    lines_all = np.concatenate([true_eval_facts["facts"], false_eval_facts["facts"]])
+    correct_all = np.concatenate([np.ones(len(true_eval_facts["facts"])), np.zeros(len(false_eval_facts["facts"]))])
+
     lines_all = np.array(lines_all)
     correct_all = np.array(correct_all)
+
     prompts_test = list(map(prepare_prompt, lines_all, correct_all, [0 for _ in range(len(correct_all))]))
+
+    np.random.shuffle(prompts_test)
+    prompts_test = prompts_test[:100]
 
 
 
